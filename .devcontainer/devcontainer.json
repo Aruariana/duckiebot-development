@@ -1,0 +1,53 @@
+{
+    "name": "Duckietown Project Dev",
+    
+    // Instead of pulling an image, we build YOUR Dockerfile
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": "..",
+        "args": {
+            // CRITICAL: You must specify the architecture.
+            // Use "amd64" for Intel/AMD laptops.
+            // Use "arm64v8" for Apple Silicon (M1/M2/M3).
+            "ARCH": "amd64",
+            
+            // Should match the ARG REPO_NAME in your Dockerfile
+            "REPO_NAME": "duckiebot-development" 
+        }
+    },
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-iot.vscode-ros",
+                "ms-python.vscode-pylance",
+                "ms-azuretools.vscode-docker"
+            ],
+            "settings": {
+                // This makes the "Squiggles" go away
+                "python.autoComplete.extraPaths": [
+                    "/opt/ros/noetic/lib/python3/dist-packages",
+                    "/code/catkin_ws/src/dt-ros-commons/packages",
+                    "/code/catkin_ws/src/duckiebot-development/packages"
+                ],
+                "python.analysis.extraPaths": [
+                    "/opt/ros/noetic/lib/python3/dist-packages",
+                    "/code/catkin_ws/src/dt-ros-commons/packages",
+                    "/code/catkin_ws/src/duckiebot-development/packages"
+                ]
+            }
+        }
+    },
+
+    // This ensures you have permission to access USB devices (if needed)
+    "runArgs": [
+        "--net=host",
+        "--privileged"
+    ],
+
+    // Keeps the container running so you can work in it
+    "overrideCommand": true, 
+
+    "remoteUser": "root"
+}

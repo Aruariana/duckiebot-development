@@ -1,7 +1,7 @@
 # parameters
-ARG REPO_NAME="<REPO_NAME_HERE>"
-ARG DESCRIPTION="<DESCRIPTION_HERE>"
-ARG MAINTAINER="<YOUR_FULL_NAME> (<YOUR_EMAIL_ADDRESS>)"
+ARG REPO_NAME="duckiebot-development"
+ARG DESCRIPTION="High-level functionalities on top of template-ros."
+ARG MAINTAINER="Ömer Kayra Çetin (omerkcetin.cs@gmail.com)"
 # pick an icon from: https://fontawesome.com/v4.7.0/icons/
 ARG ICON="cube"
 
@@ -54,6 +54,10 @@ ENV DT_MODULE_TYPE="${REPO_NAME}" \
 COPY ./dependencies-apt.txt "${REPO_PATH}/"
 RUN dt-apt-install ${REPO_PATH}/dependencies-apt.txt
 
+# install opencv
+COPY ./assets/opencv/${TARGETARCH} /tmp/opencv
+RUN /tmp/opencv/install.sh && python3 -m pip list | grep opencv
+
 # install python3 dependencies
 ARG PIP_INDEX_URL="https://pypi.org/simple"
 ENV PIP_INDEX_URL=${PIP_INDEX_URL}
@@ -89,3 +93,10 @@ LABEL org.duckietown.label.module.type="${REPO_NAME}" \
     org.duckietown.label.maintainer="${MAINTAINER}"
 # <== Do not change the code above this line
 # <==================================================
+
+ENV DUCKIETOWN_ROOT="${SOURCE_DIR}"
+# used for downloads
+ENV DUCKIETOWN_DATA="/tmp/duckietown-data"
+RUN echo 'config echo 1' > .compmake.rc
+
+COPY scripts/send-fsm-state.sh /usr/local/bin

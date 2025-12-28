@@ -3,7 +3,7 @@
 source /environment.sh
 
 # initialize launch file
-dt-launchfile-init
+dt-launchfile-init --quiet
 
 # YOUR CODE BELOW THIS LINE
 # ----------------------------------------------------------------------------
@@ -13,11 +13,11 @@ dt-launchfile-init
 # NOTE: Use `dt-exec COMMAND` to run the main process (blocking process)
 
 # launching app
-dt-exec echo "This is an empty launch script. Update it to launch your application."
+dt-launcher-default-${ROBOT_TYPE}
 
 
 # ----------------------------------------------------------------------------
 # YOUR CODE ABOVE THIS LINE
 
 # wait for app to end
-dt-launchfile-join
+dt-launchfile-join --quiet
