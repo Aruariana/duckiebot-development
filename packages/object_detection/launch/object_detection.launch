@@ -1,0 +1,11 @@
+<launch>
+    <arg name="veh" default="$(env VEHICLE_NAME)"/>
+    <arg name="pkg_name" value="object_detection"/>
+    <arg name="node_name" value="object_detection_node"/>
+
+    <group ns="$(arg veh)">
+        <node pkg="$(arg pkg_name)" type="$(arg node_name).py" name="$(arg node_name)" output="screen">
+            <remap from="~image/compressed" to="camera_node/image/compressed"/>
+        </node>
+    </group>
+</launch>
