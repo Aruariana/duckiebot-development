@@ -25,7 +25,7 @@ package_root = os.path.dirname(script_dir)
 yolov5_path = os.path.join(package_root, 'yolov5')
 
 # 2. Ağırlık dosyasının yolu: object_detection/config/model_weights/yolov5n.pt
-weight_path = os.path.join(package_root, 'config', 'model_weights', 'yolov5n.pt')
+weight_path = os.path.join(package_root, 'config', 'model_weights', 'yolov5s_duckie.pt')
 
 # Python'ın YOLOv5 modüllerini bulabilmesi için path'e ekliyoruz
 if yolov5_path not in sys.path:
