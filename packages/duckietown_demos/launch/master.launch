@@ -47,6 +47,8 @@
     <arg name="/vehicle_avoidance/filter" default="false" />
     <arg name="/vehicle_avoidance/control" default="false"/>
 
+    <arg name="object_detection" default="false"/>
+
     <arg name="apriltags" default="false"/>
 
     <arg name="LED" default="false" />
@@ -247,6 +249,14 @@
         </group>-->
     </group>
     <!-- End Vehicle Avoidance -->
+
+    <!-- Start Object Detection -->
+    <group if="$(arg object_detection)">
+        <include file="$(find object_detection)/launch/object_detection.launch">
+            <arg name="veh" value="$(arg veh)"/>
+        </include>
+    </group>
+    <!-- End Object Detection -->
 
     <!-- Start AprilTags -->
     <group if="$(arg apriltags)">

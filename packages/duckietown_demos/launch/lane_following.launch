@@ -31,6 +31,9 @@
 	    <arg name="LED" value="true"/>
 	    <arg name="/LED/emitter" value="true"/>
 
+	    <!-- Object Detection -->
+	    <arg name="object_detection" value="true"/>
+
   	</include>
 
 </launch>
