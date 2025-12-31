@@ -19,7 +19,8 @@
 
 		<!-- Deadreckoning (aka. Odometry)	-->
 		<arg name="/localization" value="true"/>
-		<arg name="/localization/deadreckoning" value="true"/>
+		<!-- <arg name="/localization/deadreckoning" value="true"/> -->
+		<arg name="/localization/imu_odometry" value="true"/>
 		
 	    <!-- Lane Following stack -->
 	    <arg name="lane_following" value="true"/>

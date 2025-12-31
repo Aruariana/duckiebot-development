@@ -63,6 +63,7 @@
 
     <arg name="/localization" default="false"/>
     <arg name="/localization/deadreckoning" default="false"/>
+    <arg name="/localization/imu_odometry" default="false"/>
     <arg name="/localization/apriltag_localization" default="false"/>
 
     <arg name="parallel_autonomy" default="false"/>
@@ -273,6 +274,13 @@
         <group if="$(arg /localization/deadreckoning)">
             <!-- Deadreckoning node -->
             <include file="$(find deadreckoning)/launch/deadreckoning_node.launch">
+                <arg name="veh" value="$(arg veh)"/>
+            </include>
+        </group>
+
+        <group if="$(arg /localization/imu_odometry)">
+            <!-- IMU Odometry node -->
+            <include file="$(find imu_odometry)/launch/imu_odometry_node.launch">
                 <arg name="veh" value="$(arg veh)"/>
             </include>
         </group>
