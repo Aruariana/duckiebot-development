@@ -4,6 +4,7 @@ project(lane_control)
 
 find_package(catkin REQUIRED COMPONENTS
   duckietown_msgs
+  duckiebot_msgs
   geometry_msgs
   roscpp
   rospy

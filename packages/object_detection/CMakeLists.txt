@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   duckietown_msgs
+  duckiebot_msgs
   cv_bridge
   sensor_msgs
   std_msgs
