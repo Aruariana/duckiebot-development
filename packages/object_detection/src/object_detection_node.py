@@ -2,21 +2,19 @@
 import sys
 import os
 import rospy
+import yaml
 import cv2
 import numpy as np
+import torch
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage, CameraInfo
 from geometry_msgs.msg import Point
 from duckietown.dtros import DTROS, NodeType
 from duckiebot_msgs.msg import DuckieObstacle
 
-# Artık torch ve yolov5 modülleri import edilebilir
-import torch
-
 # Ground projection imports
 from image_processing.ground_projection_geometry import GroundProjectionGeometry, Point as GPPoint
 from image_processing.rectification import Rectify
-import yaml
 
 # ---------------------------------------------------------
 # 1. PATH AYARLAMASI (Dinamik Yol Bulma)
@@ -105,7 +103,7 @@ class ObjectDetectionNode(DTROS):
         
         # Publisher for duckie obstacle
         self.pub_obstacle = rospy.Publisher(
-            "/duckie_obstacle", 
+            "~duckie_obstacle", 
             DuckieObstacle, 
             queue_size=1
         )

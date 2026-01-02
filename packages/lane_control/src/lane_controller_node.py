@@ -129,7 +129,7 @@ class LaneControllerNode(DTROS):
             "~obstacle_distance_reading", StopLineReading, self.cbObstacleStopLineReading, queue_size=1
         )
         self.sub_duckie_obstacle = rospy.Subscriber(
-            "/duckie_obstacle", DuckieObstacle, self.cbDuckieObstacle, queue_size=1
+            "~duckie_obstacle", DuckieObstacle, self.cbDuckieObstacle, queue_size=1
         )
 
         self.log("Initialized!")

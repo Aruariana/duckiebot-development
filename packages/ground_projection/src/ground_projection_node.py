@@ -22,8 +22,7 @@ class GroundProjectionNode(DTROS):
     This node projects the line segments detected in the image to the ground plane and in the robot's
     reference frame.
     In this way it enables lane localization in the 2D ground plane. This projection is performed using the
-    homography
-    matrix obtained from the extrinsic calibration procedure.
+    homography matrix obtained from the extrinsic calibration procedure.
 
     Args:
         node_name (:obj:`str`): a unique, descriptive name for the node that ROS will use
