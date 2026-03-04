@@ -8,6 +8,10 @@ import message_filters
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Twist, Pose, Point, Vector3, TransformStamped, Transform
 
+# For Rviz path visualization
+from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseStamped
+
 from duckietown.dtros import DTROS, NodeType
 from duckietown_msgs.msg import WheelEncoderStamped
 from tf2_ros import TransformBroadcaster
@@ -89,10 +93,15 @@ class DeadReckoningNode(DTROS):
         # Setup publishers
         self.pub = rospy.Publisher("~odom", Odometry, queue_size=10)
 
+        # Path publisher for Rviz visualization (Said)
+        self.path_pub = rospy.Publisher("~path", Path, queue_size=1, latch=True)
+        self.path = Path()
+
         # Setup timer
         self.timer = rospy.Timer(rospy.Duration(1 / self.publish_hz), self.cb_timer)
         self._print_time = 0
         self._print_every_sec = 30
+
         # tf broadcaster for odometry TF
         self._tf_broadcaster = TransformBroadcaster()
 
@@ -214,6 +223,14 @@ class DeadReckoningNode(DTROS):
                 ),
             )
         )
+        
+        # Publish path for Rviz visualization (Said)
+        self.path.header = odom.header
+        pose = PoseStamped()
+        pose.header = odom.header
+        pose.pose = odom.pose.pose
+        self.path.poses.append(pose)
+        self.path_pub.publish(self.path)    
 
     @staticmethod
     def angle_clamp(theta):
