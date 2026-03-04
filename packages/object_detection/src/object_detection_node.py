@@ -12,46 +12,36 @@ from geometry_msgs.msg import Point
 from duckietown.dtros import DTROS, NodeType
 from duckiebot_msgs.msg import DuckieObstacle
 
-# Ground projection imports
 from image_processing.ground_projection_geometry import GroundProjectionGeometry, Point as GPPoint
 from image_processing.rectification import Rectify
 
-# ---------------------------------------------------------
-# 1. PATH AYARLAMASI (Dinamik Yol Bulma)
-# ---------------------------------------------------------
-# Bu dosya 'src' klasörünün içinde.
-# Yapı: object_detection/src/bu_dosya.py
-script_dir = os.path.dirname(os.path.abspath(__file__)) 
+# Find the path to YOLOv5 and weights based on the current file's location
 
-# Bir üst klasöre (paket kök dizinine 'object_detection') çıkıyoruz
-package_root = os.path.dirname(script_dir)
+# object_detection/src
+object_detection_src_path = os.path.dirname(os.path.abspath(__file__)) 
 
-# 1. YOLOv5 kütüphanesinin yolu: object_detection/yolov5
-yolov5_path = os.path.join(package_root, 'yolov5')
+# object_detection
+object_detection_path = os.path.dirname(object_detection_src_path)
 
-# 2. Ağırlık dosyasının yolu: object_detection/config/model_weights/yolov5n.pt
-weight_path = os.path.join(package_root, 'config', 'model_weights', 'yolov5s_duckie.pt')
+# object_detection/yolov5
+yolov5_path = os.path.join(object_detection_path, 'yolov5')
 
-# Python'ın YOLOv5 modüllerini bulabilmesi için path'e ekliyoruz
+# object_detection/config/model_weights/yolov5n.pt
+weight_path = os.path.join(object_detection_path, 'config', 'model_weights', 'yolov5s_duckie.pt')
+
+# Add YOLOv5 path to sys.path so that torch.hub can find it
 if yolov5_path not in sys.path:
     sys.path.append(yolov5_path)
 
 class ObjectDetectionNode(DTROS):
     def __init__(self, node_name):
         super(ObjectDetectionNode, self).__init__(node_name=node_name, node_type=NodeType.PERCEPTION)
-        
-        rospy.loginfo(f"Paket Kök Dizini: {package_root}")
-        rospy.loginfo(f"YOLO Path: {yolov5_path}")
-        rospy.loginfo(f"Weights Path: {weight_path}")
 
-        # ---------------------------------------------------------
-        # 2. MODEL YÜKLEME
-        # ---------------------------------------------------------
+        # DEBUG: Check if GPU is available
         rospy.loginfo(f"YOLOv5 v6.1 yükleniyor... GPU Durumu: {torch.cuda.is_available()}")
         
         try:
-            # source='local' -> Github'a gitme, gösterdiğim 'yolov5_path' klasörünü kullan.
-            # path -> Ağırlık dosyasının tam yolu
+            # Load the YOLOv5 model locally with custom weights
             self.model = torch.hub.load(
                 yolov5_path, 
                 'custom', 
@@ -60,19 +50,21 @@ class ObjectDetectionNode(DTROS):
                 force_reload=True
             )
         except Exception as e:
-            rospy.logerr(f"CRITICAL: Model yüklenirken hata oluştu! Pathleri kontrol edin.\nHata: {e}")
-            # Hata durumunda node'u kapatmak güvenlidir
-            sys.exit(1)
+            # Log the error and shutdown the node
+            node_name = rospy.get_name()
+            rospy.logerr(f"CRITICAL: Error loading YOLOv5 model, check paths:\n Error: {e}")
+            rospy.signal_shutdown(f"{node_name} failed. Model could not be loaded. Shutting down the node.")
 
-        # GPU (CUDA) Ayarı
+        # GPU or CPU
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model.to(self.device)
         
-        rospy.loginfo(f"Kullanılan cihaz: {self.device}")
+        # DEBUG: Log the device being used
+        rospy.loginfo(f"Device used: {self.device}")
         
-        # Inference Parametreleri
-        self.model.conf = 0.5  # Güven eşiği (Minimum %50 emin olmalı)
-        self.model.iou = 0.45  # NMS IoU eşiği
+        # Inference Parameters (need tuning)
+        self.model.conf = 0.5  # Confidence threshold
+        self.model.iou = 0.45  # NMS IoU threshold
         
         self.bridge = CvBridge()
         
@@ -85,7 +77,7 @@ class ObjectDetectionNode(DTROS):
         # Subscriber for camera info
         self.sub_camera_info = rospy.Subscriber("~camera_info", CameraInfo, self.cb_camera_info, queue_size=1)
         
-        # Subscriber (Robot'tan gelen görüntü)
+        # Subscriber for compressed image
         self.sub_image = rospy.Subscriber(
             "~image/compressed", 
             CompressedImage, 
@@ -94,7 +86,7 @@ class ObjectDetectionNode(DTROS):
             buff_size=2**24 
         )
         
-        # Publisher (Sonuç görüntüsü)
+        # Publisher for debug image
         self.pub_debug = rospy.Publisher(
             "~debug/image/compressed", 
             CompressedImage, 
@@ -118,25 +110,25 @@ class ObjectDetectionNode(DTROS):
 
     def cb_image(self, msg):
         try:
-            # 1. ROS Mesajını OpenCV formatına çevir
+            # Change the format of the compressed image data to a numpy array and decode it using OpenCV
             np_arr = np.frombuffer(msg.data, np.uint8)
             image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             
+            # DEBUG: Check if the image is empty
             if image is None:
-                rospy.logwarn("Boş görüntü alındı!")
+                rospy.logwarn("Empty image received!")
                 return
 
-            # 2. Renk dönüşümü (ROS/OpenCV BGR kullanır, YOLO RGB ister)
+            # YoLOv5 expects RGB format, OpenCV uses BGR by default
             img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             
-            # 3. Inference (Tahmin)
-            # size=640 varsayılan değerdir, hız için 320 veya 416 yapılabilir
+            # Inference with YOLOv5
             results = self.model(img_rgb)
             
             # Get detections
-            detections = results.pandas().xyxy[0]  # pandas dataframe
+            detections = results.pandas().xyxy[0]
             
-            # Log detections for debugging
+            # DEBUG: Log detections
             if not detections.empty:
                 for _, det in detections.iterrows():
                     rospy.loginfo(f"Detection: name={det['name']}, conf={det['confidence']}, xmin={det['xmin']}, xmax={det['xmax']}, ymin={det['ymin']}, ymax={det['ymax']}")
@@ -148,9 +140,10 @@ class ObjectDetectionNode(DTROS):
             
             if self.camera_info_received:
                 for _, det in detections.iterrows():
-                    # Filter: Only trust detections with high confidence
-                    if det['name'] == 'duckie' and det['confidence'] > 0.5:
+                    # Filter: Only consider 'duckie' class detections
+                    if det['name'] == 'duckie':
                         
+                        # Compute the center bottom point of the bounding box
                         x_center = (det['xmin'] + det['xmax']) / 2
                         y_bottom = det['ymax'] 
 
@@ -161,15 +154,9 @@ class ObjectDetectionNode(DTROS):
                         point_msg = Point(x_norm, y_norm, 0)
                         ground_point = self.pixel_msg_to_ground_msg(point_msg)
                         
-                        # --- LOGIC FIX START ---
-                        # In ROS/Duckietown: X is Forward, Y is Left/Right
-                        
-                        # 1. Is it in front of me? (x > 0)
-                        # 2. Is it close enough to matter? (x < 1.2 meters)
-                        # 3. Is it in my lane? (abs(y) < 0.20 meters approx lane half-width)
+                        # Check if the detected duckie is within a reasonable area in front of the robot
                         if ground_point.x > 0 and ground_point.x < 0.5 and abs(ground_point.y) < 0.15:
                             
-                            # Distance is the X axis (forward)
                             distance = ground_point.x 
                             
                             if distance < min_distance:
@@ -177,10 +164,10 @@ class ObjectDetectionNode(DTROS):
                                 obstacle_position = ground_point
                                 obstacle_detected = True
                         else:
+                            # DEBUG: Log out-of-bounds detections
                             rospy.logdebug(f"Duckie ignored (out of bounds): x={ground_point.x:.2f}, y={ground_point.y:.2f}")
-                        # --- LOGIC FIX END ---
             
-            # Log detection status
+            # DEBUG: Log obstacle detection results
             rospy.loginfo(f"Obstacle detected: {obstacle_detected}, distance: {min_distance if obstacle_detected else 0}")
             
             # Publish obstacle message
@@ -194,17 +181,14 @@ class ObjectDetectionNode(DTROS):
                 obstacle_msg.position = Point(0,0,0)
             self.pub_obstacle.publish(obstacle_msg)
             
-            # 4. Çizim (Rendering)
-            # Orijinal imajın üzerine kutuları çizer
+            # Annotate detections on the image for debugging
             results.render() 
-            
-            # Sonuç, results.imgs[0] içinde RGB formatında durur
             annotated_img_rgb = results.imgs[0]
             
-            # 5. Tekrar BGR'a çevir (Geri yayınlamak için)
+            # Convert back to BGR for OpenCV before publishing
             annotated_img_bgr = cv2.cvtColor(annotated_img_rgb, cv2.COLOR_RGB2BGR)
             
-            # 6. ROS Mesajına çevir ve yayınla
+            # Publish the annotated image
             out_msg = self.bridge.cv2_to_compressed_imgmsg(annotated_img_bgr)
             self.pub_debug.publish(out_msg)
             
@@ -237,26 +221,22 @@ class ObjectDetectionNode(DTROS):
 
         return calib_data["homography"]
 
-    def pixel_msg_to_ground_msg(self, point_msg):
+def pixel_msg_to_ground_msg(self, point_msg) -> PointMsg:
         """
-        Projects a normalized point to ground coordinates.
+        Converts a normalized pixel coordinate (PointMsg) to a ground coordinate (PointMsg) 
+        using the homography and rectification.
         """
-        # 1. Normalized coordinates to absolute pixel (e.g. 0.5 -> 320)
-        norm_pt = GPPoint.from_message(point_msg)
+        # normalized coordinates to pixel:
+        norm_pt = Point.from_message(point_msg)
         pixel = self.ground_projector.vector2pixel(norm_pt)
-        
-        # 2. Rectify (undistort) the pixel
-        # This returns absolute pixels (e.g. 320 -> 321 due to distortion)
+        # rectify
         rect = self.rectifier.rectify_point(pixel)
-        rect_pt = GPPoint.from_message(rect)
-        
-        # 3. Project on ground
-        # ERROR WAS HERE: Do NOT normalize (divide by width/height) again.
-        # The Homography matrix expects absolute pixel coordinates.
+        # convert to Point
+        rect_pt = Point.from_message(rect)
+        # project on ground
         ground_pt = self.ground_projector.pixel2ground(rect_pt)
-        
-        # 4. Point to message
-        ground_pt_msg = Point()
+        # point to message
+        ground_pt_msg = PointMsg()
         ground_pt_msg.x = ground_pt.x
         ground_pt_msg.y = ground_pt.y
         ground_pt_msg.z = ground_pt.z
@@ -264,7 +244,6 @@ class ObjectDetectionNode(DTROS):
         return ground_pt_msg
 
 if __name__ == '__main__':
-    # Node başlatma
     node = ObjectDetectionNode(node_name='object_detection_node')
     rospy.spin()
 
