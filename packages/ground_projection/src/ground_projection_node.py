@@ -14,6 +14,7 @@ from duckietown_msgs.msg import Segment, SegmentList
 from geometry_msgs.msg import Point as PointMsg
 from image_processing.ground_projection_geometry import GroundProjectionGeometry, Point
 from image_processing.rectification import Rectify
+from image_processing.projection_utils import load_extrinsics, pixel_msg_to_ground_msg
 from sensor_msgs.msg import CameraInfo, CompressedImage
 
 
@@ -52,7 +53,7 @@ class GroundProjectionNode(DTROS):
         self.bridge = CvBridge()
         self.ground_projector = None
         self.rectifier = None
-        self.homography = self.load_extrinsics()
+        self.homography = load_extrinsics()
         self.first_processing_done = False
         self.camera_info_received = False
 
@@ -101,37 +102,7 @@ class GroundProjectionNode(DTROS):
             )
         self.camera_info_received = True
 
-    def pixel_msg_to_ground_msg(self, point_msg) -> PointMsg:
-        """
-        Creates a :py:class:`ground_projection.Point` object from a normalized point message from an
-        unrectified
-        image. It converts it to pixel coordinates and rectifies it. Then projects it to the ground plane and
-        converts it to a ROS Point message.
-
-        Args:
-            point_msg (:obj:`geometry_msgs.msg.Point`): Normalized point coordinates from an unrectified
-            image.
-
-        Returns:
-            :obj:`geometry_msgs.msg.Point`: Point coordinates in the ground reference frame.
-
-        """
-        # normalized coordinates to pixel:
-        norm_pt = Point.from_message(point_msg)
-        pixel = self.ground_projector.vector2pixel(norm_pt)
-        # rectify
-        rect = self.rectifier.rectify_point(pixel)
-        # convert to Point
-        rect_pt = Point.from_message(rect)
-        # project on ground
-        ground_pt = self.ground_projector.pixel2ground(rect_pt)
-        # point to message
-        ground_pt_msg = PointMsg()
-        ground_pt_msg.x = ground_pt.x
-        ground_pt_msg.y = ground_pt.y
-        ground_pt_msg.z = ground_pt.z
-
-        return ground_pt_msg
+    # `pixel_msg_to_ground_msg` provided by `image_processing.projection_utils`
 
     def lineseglist_cb(self, seglist_msg):
         """
@@ -148,8 +119,8 @@ class GroundProjectionNode(DTROS):
             seglist_out.header = seglist_msg.header
             for received_segment in seglist_msg.segments:
                 new_segment = Segment()
-                new_segment.points[0] = self.pixel_msg_to_ground_msg(received_segment.pixels_normalized[0])
-                new_segment.points[1] = self.pixel_msg_to_ground_msg(received_segment.pixels_normalized[1])
+                new_segment.points[0] = pixel_msg_to_ground_msg(received_segment.pixels_normalized[0], self.ground_projector, self.rectifier)
+                new_segment.points[1] = pixel_msg_to_ground_msg(received_segment.pixels_normalized[1], self.ground_projector, self.rectifier)
                 new_segment.color = received_segment.color
                 # TODO what about normal and points
                 seglist_out.segments.append(new_segment)
@@ -185,40 +156,7 @@ class GroundProjectionNode(DTROS):
     #     rospy.loginfo("wrote homography")
     #     return EstimateHomographyResponse()
 
-    def load_extrinsics(self):
-        """
-        Loads the homography matrix from the extrinsic calibration file.
-
-        Returns:
-            :obj:`numpy array`: the loaded homography matrix
-
-        """
-        # load intrinsic calibration
-        cali_file_folder = "/data/config/calibrations/camera_extrinsic/"
-        cali_file = cali_file_folder + rospy.get_namespace().strip("/") + ".yaml"
-
-        # Locate calibration yaml file or use the default otherwise
-        if not os.path.isfile(cali_file):
-            self.log(
-                f"Can't find calibration file: {cali_file}.\n Using default calibration instead.", "warn"
-            )
-            cali_file = os.path.join(cali_file_folder, "default.yaml")
-
-        # Shutdown if no calibration file not found
-        if not os.path.isfile(cali_file):
-            msg = "Found no calibration file ... aborting"
-            self.logerr(msg)
-            rospy.signal_shutdown(msg)
-
-        try:
-            with open(cali_file, "r") as stream:
-                calib_data = yaml.load(stream, Loader=yaml.Loader)
-        except yaml.YAMLError:
-            msg = f"Error in parsing calibration file {cali_file} ... aborting"
-            self.logerr(msg)
-            rospy.signal_shutdown(msg)
-
-        return calib_data["homography"]
+    # `load_extrinsics` provided by `image_processing.projection_utils`
 
     def debug_image(self, seg_list):
         """
