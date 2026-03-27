@@ -14,6 +14,7 @@ from duckiebot_msgs.msg import DuckieObstacle
 
 from image_processing.ground_projection_geometry import GroundProjectionGeometry, Point as GPPoint
 from image_processing.rectification import Rectify
+from image_processing.projection_utils import load_extrinsics, pixel_msg_to_ground_msg
 
 # Find the path to YOLOv5 and weights based on the current file's location
 
@@ -71,7 +72,7 @@ class ObjectDetectionNode(DTROS):
         # Ground projection setup
         self.ground_projector = None
         self.rectifier = None
-        self.homography = self.load_extrinsics()
+        self.homography = load_extrinsics()
         self.camera_info_received = False
         
         # Subscriber for camera info
@@ -152,7 +153,7 @@ class ObjectDetectionNode(DTROS):
                         y_norm = y_bottom / image.shape[0]
                         
                         point_msg = Point(x_norm, y_norm, 0)
-                        ground_point = self.pixel_msg_to_ground_msg(point_msg)
+                        ground_point = pixel_msg_to_ground_msg(point_msg, self.ground_projector, self.rectifier)
                         
                         # Check if the detected duckie is within a reasonable area in front of the robot
                         if ground_point.x > 0 and ground_point.x < 0.5 and abs(ground_point.y) < 0.15:
@@ -193,55 +194,8 @@ class ObjectDetectionNode(DTROS):
             self.pub_debug.publish(out_msg)
             
         except Exception as e:
-            rospy.logerr(f"Tespit döngüsünde hata: {e}")
+            rospy.logerr(f"Error in object detection loop: {e}")
 
-    def load_extrinsics(self):
-        """
-        Loads the homography matrix from the extrinsic calibration file.
-        """
-        cali_file_folder = "/data/config/calibrations/camera_extrinsic/"
-        cali_file = cali_file_folder + rospy.get_namespace().strip("/") + ".yaml"
-
-        if not os.path.isfile(cali_file):
-            self.log(f"Can't find calibration file: {cali_file}. Using default calibration instead.", "warn")
-            cali_file = os.path.join(cali_file_folder, "default.yaml")
-
-        if not os.path.isfile(cali_file):
-            msg = "Found no calibration file ... aborting"
-            self.logerr(msg)
-            rospy.signal_shutdown(msg)
-
-        try:
-            with open(cali_file, "r") as stream:
-                calib_data = yaml.load(stream, Loader=yaml.Loader)
-        except yaml.YAMLError:
-            msg = f"Error in parsing calibration file {cali_file} ... aborting"
-            self.logerr(msg)
-            rospy.signal_shutdown(msg)
-
-        return calib_data["homography"]
-
-def pixel_msg_to_ground_msg(self, point_msg) -> PointMsg:
-        """
-        Converts a normalized pixel coordinate (PointMsg) to a ground coordinate (PointMsg) 
-        using the homography and rectification.
-        """
-        # normalized coordinates to pixel:
-        norm_pt = Point.from_message(point_msg)
-        pixel = self.ground_projector.vector2pixel(norm_pt)
-        # rectify
-        rect = self.rectifier.rectify_point(pixel)
-        # convert to Point
-        rect_pt = Point.from_message(rect)
-        # project on ground
-        ground_pt = self.ground_projector.pixel2ground(rect_pt)
-        # point to message
-        ground_pt_msg = PointMsg()
-        ground_pt_msg.x = ground_pt.x
-        ground_pt_msg.y = ground_pt.y
-        ground_pt_msg.z = ground_pt.z
-
-        return ground_pt_msg
 
 if __name__ == '__main__':
     node = ObjectDetectionNode(node_name='object_detection_node')
