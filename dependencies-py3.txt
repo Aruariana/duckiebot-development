@@ -9,7 +9,7 @@ ros-node-utils==2.0.0
 # constraints: >= 6.0.9
 compmake-z6==6.1.5
 
-# YOLO
+# YOLOv5 v6.1
 torch>=1.7.0
 torchvision>=0.8.1
 pandas>=1.1.4
