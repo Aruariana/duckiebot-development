@@ -47,13 +47,14 @@ class ObjectDetectionNode(DTROS):
                 yolov5_path, 
                 'custom', 
                 path=weight_path, 
-                source='local', 
-                force_reload=True
+                source='local',
+                force_reload=False,
+                trust_repo=True
             )
         except Exception as e:
             # Log the error and shutdown the node
             node_name = rospy.get_name()
-            rospy.logerr(f"CRITICAL: Error loading YOLOv5 model, check paths:\n Error: {e}")
+            rospy.logerr(f"CRITICAL: Error loading YOLOv5 model, check paths:\n Error: {e.with_traceback()}")
             rospy.signal_shutdown(f"{node_name} failed. Model could not be loaded. Shutting down the node.")
 
         # GPU or CPU
