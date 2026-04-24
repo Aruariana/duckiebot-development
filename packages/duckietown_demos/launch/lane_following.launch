@@ -30,6 +30,9 @@
 	    <!-- Object Detection -->
 	    <arg name="object_detection" value="true"/>
 
+		<!-- AprilTags -->
+		<arg name="apriltags" value="true"/>
+
   	</include>
 
 </launch>

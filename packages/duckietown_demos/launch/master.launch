@@ -253,6 +253,8 @@
 
     <!-- Start Object Detection -->
     <group if="$(arg object_detection)">
+        <remap from="object_detection_node/image/compressed" to="camera_node/image/compressed"/>
+        <remap from="object_detection_node/camera_info" to="camera_node/camera_info"/>
         <include file="$(find object_detection)/launch/object_detection.launch">
             <arg name="veh" value="$(arg veh)"/>
         </include>
@@ -268,12 +270,10 @@
             <arg name="veh" value="$(arg veh)"/>
         </include>
 
-        <!-- Postprocessing node -->
-        <remap from="apriltag_postprocessing_node/detections" to="apriltag_detector_node/detections" />
-        <include file="$(find apriltag)/launch/apriltag_postprocessing_node.launch">
+        <!-- Localization node -->
+        <remap from="apriltag_localization_node/detections" to="apriltag_detector_node/detections" />
+        <include file="$(find apriltag)/launch/apriltag_localization_node.launch">
             <arg name="veh" value="$(arg veh)"/>
-            <arg name="config" value="$(arg config)"/>
-            <arg name="param_file_name" value="$(arg param_file_name)"/>
         </include>
     </group>
     <!--End Apriltags -->
