@@ -49,13 +49,13 @@ colors = Colors()  # create instance for 'from utils.plots import colors'
 
 
 def check_pil_font(font=FONT, size=10):
-    # Return a PIL TrueType Font, downloading to CONFIG_DIR if necessary
+    # Return a PIL TrueType Font from local fonts directory
     font = Path(font)
-    font = font if font.exists() else (CONFIG_DIR / font.name)
+    font = font if font.exists() else (Path(__file__).parent / 'fonts' / font.name)
     try:
         return ImageFont.truetype(str(font) if font.exists() else font.name, size)
-    except Exception:  # download if missing
-        check_font(font)
+    except Exception as e:
+        LOGGER.warning(f'Font loading failed: {e}')
         try:
             return ImageFont.truetype(str(font), size)
         except TypeError:
