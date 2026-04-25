@@ -20,9 +20,7 @@ class AprilTagLocalization(object):
         # KNOWN MAP LOCATIONS: Dictionary mapping tag_id to (x, y, z, yaw_in_radians)
         self.known_tags = {
             # Example: Tag 11 is at X=0.25m, Y=0.0m, Z=0.08m (8cm off ground), facing forward
-            11: (0.25, 0.0, 0.08, 0.0),        
-            # Example: Tag 2 is at X=2.5m, Y=1.0m, Z=0.08m, rotated 90 deg
-            2: (2.5, 1.0, 0.08, 1.5708),     
+            11: (0.25, 0.0, 0.08, 3.14159)    
         }
 
         # Publish tag markers for RVIZ visualization
@@ -65,10 +63,15 @@ class AprilTagLocalization(object):
             opt_R_tag = tr.quaternion_matrix((rot.x, rot.y, rot.z, rot.w))
             opt_T_tag = tr.concatenate_matrices(opt_t_tag, opt_R_tag)
 
-            # Tag Z-out to Tag X-out
-            tagzout_T_tagxout = tr.euler_matrix(-np.pi / 2, 0, np.pi / 2, "rxyz")
+            # Converts from Apriltag (Z-in, X-right, Y-down) to Map (X-out, Y-right, Z-up)
+            tagzout_T_tagxout = np.array([
+                [ 0.0,  1.0,  0.0,  0.0],
+                [ 0.0,  0.0, -1.0,  0.0],
+                [-1.0,  0.0,  0.0,  0.0],
+                [ 0.0,  0.0,  0.0,  1.0]
+            ])
 
-            # Calculate: Vehicle -> Tag
+            # Calculate: Vehicle -> Tag 
             veh_T_tag = tr.concatenate_matrices(veh_T_optical, opt_T_tag, tagzout_T_tagxout)
 
             # 3. Transform: Map to Tag (from our known dictionary)
@@ -86,7 +89,7 @@ class AprilTagLocalization(object):
             (final_x, final_y, final_z) = tr.translation_from_matrix(map_T_veh)
             (qx, qy, qz, qw) = tr.quaternion_from_matrix(map_T_veh)
 
-            # 5. Publish to Switcher Node
+            # 5. Publish Pose
             pose_msg = PoseStamped()
 
             pose_msg.header.stamp = msg.header.stamp 
