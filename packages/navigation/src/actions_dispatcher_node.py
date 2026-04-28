@@ -44,7 +44,7 @@ class ActionsDispatcherNode:
             self.actions = []
             rospy.wait_for_service("graph_search")
             graph_search = rospy.ServiceProxy("graph_search", GraphSearch)
-            graph_search("0", "0")
+            graph_search("", "", 0.0, 0.0)
         elif self.localization_mode != "none" and self.fsm_mode == self.localization_mode:
             self.pubLocalized()
         self.dispatcher()
@@ -78,10 +78,12 @@ class ActionsDispatcherNode:
 
     def graph_search(self, data):
         print(("Requesting map for src: ", data.source_node, " and target: ", data.target_node))
+        print(("Target coordinates: x=", data.target_x, " y=", data.target_y))
         rospy.wait_for_service("graph_search")
         try:
             graph_search = rospy.ServiceProxy("graph_search", GraphSearch)
-            resp = graph_search(data.source_node, data.target_node)
+            # Call with actual coordinates from the request
+            resp = graph_search(data.source_node, data.target_node, data.target_x, data.target_y)
             self.actions = resp.actions
             if self.actions:
                 # remove 'f' (follow line) from actions and add wait action in the end of queue

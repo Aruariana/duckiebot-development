@@ -1,0 +1,36 @@
+# Common costmap parameters
+map_type: costmap
+
+# Plugins (no lidar, so only static layer and inflation)
+plugins:
+  - {name: static_layer, type: "costmap_2d::StaticLayer"}
+  - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+# Layer parameters
+static_layer:
+  map_topic: /wolf/map
+  subscribe_to_updates: true
+  track_unknown_space: true
+  use_maximum: false
+
+inflation_layer:
+  inflation_radius: 0.5
+  cost_scaling_factor: 10.0
+  inflate_unknown: false
+  inflate_around_unknown: false
+
+# Costmap updates
+update_frequency: 5.0
+publish_frequency: 2.0
+
+# Resolution in m/cell
+resolution: 0.05
+
+# Footprint
+footprint: [[0.2, 0.2], [0.2, -0.2], [-0.2, -0.2], [-0.2, 0.2]]
+footprint_padding: 0.01
+
+# Cost mapping
+free_threshold: 0.196
+lethal_threshold: 0.196
+unknown_cost_value: -1

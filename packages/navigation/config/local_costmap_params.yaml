@@ -1,0 +1,13 @@
+# Local costmap parameters
+global_frame: /wolf/odom
+robot_base_frame: /wolf/base
+update_frequency: 5.0
+publish_frequency: 2.0
+
+# Rolling window
+static_map: false
+rolling_window: true
+width: 6.0
+height: 6.0
+origin_x: -3.0
+origin_y: -3.0

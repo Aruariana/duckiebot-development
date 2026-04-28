@@ -7,6 +7,12 @@ libyaml-cpp-dev
 python3-sklearn
 iputils-ping
 python3-tk
+ros-noetic-move-base
+ros-noetic-map-server
+ros-noetic-dwa-local-planner
+ros-noetic-navigation
+ros-noetic-navfn
+graphviz
 
 mencoder
 mplayer

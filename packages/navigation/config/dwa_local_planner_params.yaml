@@ -1,0 +1,62 @@
+# DWA Local Planner parameters
+
+# Robot acceleration limits
+acc_lim_x: 2.5
+acc_lim_y: 0.0
+acc_lim_theta: 3.2
+
+# Robot velocity limits
+max_vel_x: 0.5
+min_vel_x: 0.1
+max_vel_y: 0.0
+min_vel_y: 0.0
+max_trans_vel: 0.5
+min_trans_vel: 0.1
+max_rot_vel: 1.0
+min_rot_vel: 0.2
+
+# Forward point distance
+forward_point_distance: 0.325
+
+# Trajectory parameters
+sim_time: 1.0
+sim_granularity: 0.02
+sim_periods: 8
+angular_sim_granularity: 0.02
+
+# Scoring parameters
+path_distance_bias: 32.0
+goal_distance_bias: 24.0
+occdist_scale: 0.02
+
+# Obstacle parameters
+scaling_speed: 0.25
+max_scaling_factor: 0.2
+max_vel_theta: 0.0
+
+# Penalty parameters
+penalize_negative_x: true
+penalize_backwards: true
+
+# Sampling
+vx_samples: 6
+vy_samples: 1
+vth_samples: 20
+
+# Controller frequency
+controller_frequency: 20.0
+
+# Meter scoring
+meter_scoring: true
+
+# Stop time buffer
+stop_time_buffer: 0.2
+
+# Oscillation prevention
+oscillation_reset_dist: 0.05
+oscillation_reset_angle: 0.2
+
+# Debugging
+debug: false
+publish_cost_grid_pc: false
+publish_traj_pc: false

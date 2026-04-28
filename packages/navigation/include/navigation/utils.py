@@ -106,7 +106,8 @@ class PriorityQueue(Queue):
             return self.A.pop()[1]
 
     def __contains__(self, item):
-        return some(lambda _, x: x == item, self.A)
+        # Change 'lambda _, x:' to 'lambda x:'
+        return some(lambda x: x == item, self.A)
 
     def __getitem__(self, key):
         for _, item in self.A:

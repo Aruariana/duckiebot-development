@@ -7,7 +7,7 @@ from catkin_pkg.python_setup import generate_distutils_setup
 setup_args = generate_distutils_setup(
     packages=["navigation", "rqt_navigation"],
     package_dir={"": "include"},
-    requires=["std_msgs", "rospy", "graphviz"],
+    requires=["std_msgs", "rospy", "graphviz", "actionlib", "geometry_msgs", "nav_msgs", "sensor_msgs"],
 )
 
 setup(**setup_args)

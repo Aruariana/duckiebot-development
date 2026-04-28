@@ -1,4 +1,6 @@
 string source_node
 string target_node
+float32 target_x
+float32 target_y
 ---
 string[] actions
