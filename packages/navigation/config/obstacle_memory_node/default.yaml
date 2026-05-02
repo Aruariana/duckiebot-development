@@ -1,0 +1,36 @@
+# Obstacle Memory Node Configuration
+# Manages persistent detection of obstacles from YOLOv5 in global coordinates
+
+# Maximum age (in seconds) before an obstacle is forgotten if not re-detected
+# This prevents the memory from keeping very old obstacles that may no longer be relevant
+max_obstacle_age: 5.0
+
+# Size of moving average window for smoothing obstacle positions
+# Larger window = more smoothing but slower response to real motion
+# Smaller window = faster response but more sensitive to detection jitter
+moving_avg_window: 5
+
+# Semantic priors: Physical properties of detected obstacles
+# Each class defines:
+#   - radius: Physical radius of the obstacle (meters)
+#   - safety_margin: Additional buffer zone around obstacle (meters)
+#   - confidence_threshold: Minimum YOLO confidence to consider detection valid
+#
+# The total effective radius for planning is: radius + safety_margin
+# This is important because mono camera depth estimation is imprecise,
+# so we inflate obstacles to be conservative with safety.
+semantic_priors:
+  duckie:
+    radius: 0.05
+    safety_margin: 0.05
+    confidence_threshold: 0.5
+  
+  # Future classes can be added here as detection capabilities expand
+  # cone:
+  #   radius: 0.08
+  #   safety_margin: 0.05
+  #   confidence_threshold: 0.5
+  # pedestrian:
+  #   radius: 0.15
+  #   safety_margin: 0.1
+  #   confidence_threshold: 0.6

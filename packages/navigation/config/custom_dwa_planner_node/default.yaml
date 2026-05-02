@@ -1,0 +1,46 @@
+# Custom DWA (Dynamic Window Approach) Planner Configuration
+# Lightweight local planner tailored for Duckiebot mono camera constraints
+
+# Robot Kinematic Limits (Duckiebot DB21M specifics)
+# These should match the actual motor capabilities of your Duckiebot
+max_velocity: 0.4          # Maximum linear velocity (m/s)
+max_omega: 1.5             # Maximum angular velocity (rad/s)
+
+# Velocity Sampling
+# Lower numbers = faster computation, higher numbers = better trajectory quality
+velocity_resolution: 5     # Number of linear velocity samples (typical: 3-7)
+omega_resolution: 9        # Number of angular velocity samples (typical: 5-15)
+
+# Trajectory Simulation Parameters
+prediction_horizon: 1.0    # How far into future to simulate (seconds)
+                          # Shorter = more reactive but may miss distant obstacles
+                          # Longer = more predictive but slower computation
+simulation_dt: 0.1         # Timestep for trajectory simulation (seconds)
+                          # Smaller = more accurate simulation but slower
+                          # Larger = faster but may skip obstacles
+
+# Cost Function Weights
+# These tune how much each objective influences the final decision.
+# Weights are normalized so total cost makes sense in [0, inf) range.
+# Higher weight = higher importance
+weight_path: 1.0           # Following global path importance
+weight_velocity: 0.1       # Preference for forward motion (prevent stalling)
+weight_obstacle: 10.0      # Avoidance of obstacles (CRITICAL - must be high!)
+weight_heading: 0.05       # Smooth heading changes (prevents jerky turns)
+
+# Planning Rate
+# The planner runs at this frequency (set in code as 10 Hz / 0.1s timer)
+# Affects responsiveness and computational load
+# 10 Hz is a good balance for Duckiebot limited compute
+
+# Obstacle Avoidance Strategy
+# The planner uses a repulsive potential field approach:
+# - Distance to obstacle is checked at each trajectory point
+# - If any point penetrates the obstacle radius (including safety margin), trajectory is rejected
+# - Otherwise, cost increases inversely with distance (closer = more expensive)
+# This ensures safety-critical collision avoidance while allowing near-optimal planning
+
+# Path Following Strategy
+# Global path is provided as a sequence of waypoints
+# Cost function evaluates lateral deviation from path
+# Encourages lane-following behavior while reactively avoiding dynamic obstacles
