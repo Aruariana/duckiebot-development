@@ -1,9 +1,0 @@
-# Global costmap parameters
-global_frame: /wolf/map
-robot_base_frame: /wolf/base
-update_frequency: 5.0
-publish_frequency: 2.0
-
-# Static map
-static_map: true
-rolling_window: false

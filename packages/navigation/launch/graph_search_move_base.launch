@@ -16,41 +16,8 @@
 	<param name="/map_name" value="$(arg map_name)" />
 
   	
-
-  	<!-- Move base with graph search planner -->
-  	<node name="move_base" pkg="move_base" type="move_base" respawn="false" output="screen" ns="$(arg veh)">
-    	<param name="base_global_planner" value="navfn/NavfnROS" />
-    	<param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" />
-    	
-    	<!-- Load parameters -->
-    	<rosparam file="$(find navigation)/config/move_base_params.yaml" command="load" />
-    	<rosparam file="$(find navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
-    	<rosparam file="$(find navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
-    	<rosparam file="$(find navigation)/config/local_costmap_params.yaml" command="load" ns="local_costmap" />
-    	<rosparam file="$(find navigation)/config/global_costmap_params.yaml" command="load" ns="global_costmap" />
-    	<rosparam file="$(find navigation)/config/dwa_local_planner_params.yaml" command="load" />
-
-    	<!-- Remappings -->
-    	<remap from="odom" to="$(arg veh)/deadreckoning_node/odom" />
-    	
-    	<!-- Override hard-coded frame names with correct vehicle namespace -->
-    	<param name="global_costmap/global_frame" value="$(arg veh)/map" />
-    	<param name="global_costmap/robot_base_frame" value="$(arg veh)/base" />
-    	<param name="local_costmap/global_frame" value="$(arg veh)/odom" />
-    	<param name="local_costmap/robot_base_frame" value="$(arg veh)/base" />
-  	</node>
-
-  	<!-- Converter node: Twist -> WheelsCmdStamped -->
-  	<node name="cmd_vel_to_wheels_cmd_node" pkg="navigation" type="cmd_vel_to_wheels_cmd_node.py" output="screen" ns="$(arg veh)">
-  		<remap from="~cmd_vel" to="cmd_vel" />
-  		<remap from="~wheels_cmd" to="wheels_driver_node/wheels_cmd" />
-  		<param name="baseline" value="0.1" />
-  		<param name="radius" value="0.0318" />
-  		<param name="max_wheel_speed" value="1.0" />
-  	</node>
-
   	<!-- Graph search service with move_base -->
-  	<node name="graph_search_move_base_node" pkg="navigation" type="graph_search_move_base_node.py" output="screen" ns="$(arg veh)">
+  	<node name="graph_search_create_global_path" pkg="navigation" type="graph_search_create_global_path.py" output="screen" ns="$(arg veh)">
     	<param name="map_name" value="$(arg map_name)" />
     	<param name="origin_frame" value="$(arg veh)/map" />
     	<param name="target_frame" value="$(arg veh)/base" />
