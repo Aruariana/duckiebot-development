@@ -1,0 +1,2 @@
+bool detected
+DetectedObject[] objects

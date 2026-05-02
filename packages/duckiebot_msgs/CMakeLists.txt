@@ -9,7 +9,8 @@ find_package(catkin REQUIRED COMPONENTS
 
 add_message_files(
   FILES
-  DuckieObstacle.msg
+  DetectedObject.msg
+  DetectedObstacle.msg
 )
 
 generate_messages(

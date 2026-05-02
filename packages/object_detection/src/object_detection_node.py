@@ -10,7 +10,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage, CameraInfo
 from geometry_msgs.msg import Point
 from duckietown.dtros import DTROS, NodeType
-from duckiebot_msgs.msg import DuckieObstacle
+from duckiebot_msgs.msg import DetectedObstacle, DetectedObject
 
 from image_processing.ground_projection_geometry import GroundProjectionGeometry, Point as GPPoint
 from image_processing.rectification import Rectify
@@ -95,10 +95,10 @@ class ObjectDetectionNode(DTROS):
             queue_size=1
         )
         
-        # Publisher for duckie obstacle
+        # Publisher for detected objects
         self.pub_obstacle = rospy.Publisher(
-            "~duckie_obstacle", 
-            DuckieObstacle, 
+            "~detected_obstacle", 
+            DetectedObstacle, 
             queue_size=1
         )
 
@@ -135,10 +135,8 @@ class ObjectDetectionNode(DTROS):
                 for _, det in detections.iterrows():
                     rospy.loginfo(f"Detection: name={det['name']}, conf={det['confidence']}, xmin={det['xmin']}, xmax={det['xmax']}, ymin={det['ymin']}, ymax={det['ymax']}")
             
-            # Check for duckie obstacles
-            obstacle_detected = False
-            min_distance = float('inf')
-            obstacle_position = Point()
+            # Detect all obstacles in frame
+            detected_objects = []
             
             if self.camera_info_received:
                 for _, det in detections.iterrows():
@@ -159,28 +157,31 @@ class ObjectDetectionNode(DTROS):
                         # Check if the detected duckie is within a reasonable area in front of the robot
                         if ground_point.x > 0 and ground_point.x < 0.5 and abs(ground_point.y) < 0.15:
                             
-                            distance = ground_point.x 
+                            distance = ground_point.x
                             
-                            if distance < min_distance:
-                                min_distance = distance
-                                obstacle_position = ground_point
-                                obstacle_detected = True
+                            # Create a DetectedObject for this duckie
+                            detected_object = DetectedObject()
+                            detected_object.object_type = "duckie"
+                            detected_object.distance = distance
+                            detected_object.position = ground_point
+                            detected_object.confidence = float(det['confidence'])
+                            detected_objects.append(detected_object)
+                            
+                            rospy.loginfo(f"Duckie detected: distance={distance:.3f}m, confidence={det['confidence']:.2f}")
                         else:
                             # DEBUG: Log out-of-bounds detections
                             rospy.logdebug(f"Duckie ignored (out of bounds): x={ground_point.x:.2f}, y={ground_point.y:.2f}")
             
-            # DEBUG: Log obstacle detection results
-            rospy.loginfo(f"Obstacle detected: {obstacle_detected}, distance: {min_distance if obstacle_detected else 0}")
+            # Sort by distance (closest first)
+            detected_objects.sort(key=lambda obj: obj.distance)
+            
+            # DEBUG: Log detection results
+            rospy.loginfo(f"Obstacles detected: {len(detected_objects)}")
             
             # Publish obstacle message
-            obstacle_msg = DuckieObstacle()
-            obstacle_msg.detected = obstacle_detected
-            if obstacle_detected:
-                obstacle_msg.distance = min_distance
-                obstacle_msg.position = obstacle_position
-            else:
-                obstacle_msg.distance = 0.0
-                obstacle_msg.position = Point(0,0,0)
+            obstacle_msg = DetectedObstacle()
+            obstacle_msg.detected = len(detected_objects) > 0
+            obstacle_msg.objects = detected_objects
             self.pub_obstacle.publish(obstacle_msg)
             
             # Annotate detections on the image for debugging

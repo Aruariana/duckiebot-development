@@ -11,7 +11,7 @@ from duckietown_msgs.msg import (
     FSMState,
     StopLineReading,
 )
-from duckiebot_msgs.msg import DuckieObstacle
+from duckiebot_msgs.msg import DetectedObstacle
 
 from lane_controller.controller import LaneController
 
@@ -128,8 +128,8 @@ class LaneControllerNode(DTROS):
         self.sub_obstacle_stop_line = rospy.Subscriber(
             "~obstacle_distance_reading", StopLineReading, self.cbObstacleStopLineReading, queue_size=1
         )
-        self.sub_duckie_obstacle = rospy.Subscriber(
-            "~duckie_obstacle", DuckieObstacle, self.cbDuckieObstacle, queue_size=1
+        self.sub_detected_obstacle = rospy.Subscriber(
+            "~detected_obstacle", DetectedObstacle, self.cbDetectedObstacle, queue_size=1
         )
 
         self.log("Initialized!")
@@ -145,17 +145,26 @@ class LaneControllerNode(DTROS):
         self.obstacle_stop_line_detected = msg.stop_line_detected
         self.at_stop_line = msg.at_stop_line
 
-    def cbDuckieObstacle(self, msg):
+    def cbDetectedObstacle(self, msg):
         """
-        Callback storing the current duckie obstacle distance, if detected.
+        Callback storing the current detected obstacle distance, if detected.
 
         Args:
-            msg(:obj:`DuckieObstacle`): Message containing information about the duckie obstacle.
+            msg(:obj:`DetectedObstacle`): Message containing information about detected obstacles.
         """
-        if msg.detected:
-            self.duckie_distance = msg.distance
-            self.duckie_detected = True
-            self.at_duckie = msg.distance < 0.2  # at duckie if very close
+        if msg.detected and len(msg.objects) > 0:
+            # Find the closest duckie object
+            duckie_objects = [obj for obj in msg.objects if obj.object_type == "duckie"]
+            if duckie_objects:
+                # Get the closest one
+                closest_duckie = min(duckie_objects, key=lambda obj: obj.distance)
+                self.duckie_distance = closest_duckie.distance
+                self.duckie_detected = True
+                self.at_duckie = closest_duckie.distance < 0.2  # at duckie if very close
+            else:
+                self.duckie_distance = None
+                self.duckie_detected = False
+                self.at_duckie = False
         else:
             self.duckie_distance = None
             self.duckie_detected = False
