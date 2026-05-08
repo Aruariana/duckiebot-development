@@ -65,13 +65,13 @@ class GraphSearchGlobalPath:
             (trans, rot) = self.tf_listener.lookupTransform(
                 self.origin_frame, self.target_frame, rospy.Time(0)
             )
-            source_node = self._find_closest_node_to_point(trans[0], trans[1])
+            source_node = self._find_closest_node_to_point(trans[0], trans[1], is_source_node=True)
             print(f"Using current robot position, closest node: {source_node}")
         except Exception as e:
             print(f"Could not get robot position: {e}")
             return GraphSearchResponse([])
       
-        target_node = self._find_closest_node_to_point(req.target_x, req.target_y)
+        target_node = self._find_closest_node_to_point(req.target_x, req.target_y, is_source_node=False)
         print(f"Finding closest node to click ({req.target_x}, {req.target_y}): {target_node}")
         
         print(f"Request: {source_node} -> {target_node}")
@@ -108,10 +108,66 @@ class GraphSearchGlobalPath:
         return GraphSearchResponse(path.actions)
 
 
-    def _find_closest_node_to_point(self, x, y):
-        """Find the graph node closest to coordinate (x, y)"""
+    def _get_duckiebot_direction(self):
+        """
+        Get the duckiebot's direction from its orientation (quaternion).
+        Returns direction as one of: (1,0), (0,1), (-1,0), (0,-1)
+        Returns None if orientation cannot be determined.
+        """
+        try:
+            (trans, rot) = self.tf_listener.lookupTransform(
+                self.origin_frame, self.target_frame, rospy.Time(0)
+            )
+            # rot is a quaternion (x, y, z, w)
+            # Convert to Euler angles (roll, pitch, yaw)
+            euler = tf.transformations.euler_from_quaternion(rot)
+            yaw = euler[2]  # yaw is the rotation around z-axis
+            
+            # Normalize yaw to [0, 2*pi)
+            yaw = yaw % (2 * math.pi)
+            
+            # Map yaw angle to cardinal directions
+            # 0 rad = East = (1, 0)
+            # pi/2 rad = North = (0, 1)
+            # pi rad = West = (-1, 0)
+            # 3*pi/2 rad = South = (0, -1)
+            
+            # Quantize to nearest 90-degree angle
+            angle_deg = math.degrees(yaw)
+            angle_quantized = round(angle_deg / 90) * 90
+            angle_quantized = angle_quantized % 360
+            
+            direction_map = {
+                0: (1, 0),      # East
+                90: (0, 1),     # North
+                180: (-1, 0),   # West
+                270: (0, -1)    # South
+            }
+            
+            direction = direction_map[int(angle_quantized)]
+            print(f"Duckiebot yaw: {angle_deg:.2f}°, direction: {direction}")
+            return direction
+            
+        except Exception as e:
+            print(f"Warning: Could not get duckiebot direction: {e}")
+            return None
+    
+    def _is_direction_compatible(self, duckiebot_direction, node_direction):
+        if duckiebot_direction is None or node_direction is None:
+            print("Warning: Missing direction information, assuming compatibility")
+            return True  # Allow if we can't determine direction
+        
+        # Check if duckiebot can traverse the node in its direction
+        # Compatible if duckiebot direction matches node direction
+        return ((duckiebot_direction[0] + node_direction[0]) ** 2 + (duckiebot_direction[1] + node_direction[1]) ** 2) >= 2
+    def _find_closest_node_to_point(self, x, y, is_source_node):
+        """Find the graph node closest to coordinate (x, y) with compatible direction"""
         min_distance = float('inf')
         closest_node = None
+        
+        # Get duckiebot's current direction
+        
+        duckiebot_direction = self._get_duckiebot_direction()
         
         try:
             for node_name in self.duckietown_graph._nodes:
@@ -122,11 +178,22 @@ class GraphSearchGlobalPath:
                     continue
 
                 distance = math.sqrt((node_pos[0] - x)**2 + (node_pos[1] - y)**2)
+                node_direction = self.duckietown_graph.directions.get(node_name)
                 
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_node = node_name
-            
+                # Check if direction is compatible
+                if is_source_node:
+                    # For the source node, we want to ensure the duckiebot can move in the direction of the node
+                    if self._is_direction_compatible(duckiebot_direction, node_direction):
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_node = node_name
+                else:
+                    # For the target node, we want to ensure the duckiebot can move towards the node
+                    if self._is_direction_compatible(duckiebot_direction, node_direction):
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_node = node_name
+
             if closest_node:
                 print(f"Closest node to ({x}, {y}): {closest_node} (distance: {min_distance:.2f})")
             else:

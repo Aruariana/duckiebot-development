@@ -57,7 +57,7 @@ class Tile:
         self.rotation = float(csv_row[3])
 
     def create_nodes(self):
-        return {}, []
+        return {}, [], {}
 
     def create_edges(self, tile_map):
         return []
@@ -128,7 +128,8 @@ class TurnTile(Tile):
             [self.node1.name, self.node2.name, "r"],
             [self.node4.name, self.node3.name, "l"],
         ]
-        return node_loc, edges
+        directions = { self.node1.name: self.node1.direction, self.node2.name: self.node2.direction, self.node3.name: self.node3.direction, self.node4.name: self.node4.direction }
+        return node_loc, edges, directions
 
     def create_edges(self, tile_map):
         edges = [ self.connect_node(self.node2, tile_map), self.connect_node(self.node3, tile_map) ]
@@ -175,7 +176,9 @@ class ThreeWayTile(Tile):
             [self.node5.name, self.node2.name, "l"],
             [self.node5.name, self.node6.name, "s"],
         ]
-        return node_loc, edges
+
+        directions = { self.node1.name: self.node1.direction, self.node2.name: self.node2.direction, self.node3.name: self.node3.direction, self.node4.name: self.node4.direction, self.node5.name: self.node5.direction, self.node6.name: self.node6.direction }
+        return node_loc, edges, directions
 
     def create_edges(self, tile_map):
         edges = [
@@ -234,7 +237,8 @@ class FourWayTile(Tile):
             [self.node7.name, self.node4.name, "l"],
         ]
 
-        return node_loc, edges
+        directions = { self.node1.name: self.node1.direction, self.node2.name: self.node2.direction, self.node3.name: self.node3.direction, self.node4.name: self.node4.direction, self.node5.name: self.node5.direction, self.node6.name: self.node6.direction, self.node7.name: self.node7.direction, self.node8.name: self.node8.direction }
+        return node_loc, edges, directions
 
     def create_edges(self, tile_map):
         edges = []
@@ -246,13 +250,32 @@ class FourWayTile(Tile):
 
 
 class StraightTile(Tile):
-    pass
+    """
+    node1_default = Node((-0.25, 0.5), (0, -1), "node1_default")
+    node2_default = Node((0.25, 0.5), (0, 1), "node2_default")
 
+    def create_nodes(self):
+        x = self.x
+        y = self.y
+        theta = self.rotation
+        self.node1 = StraightTile.node1_default.globalPosAndDirection(theta, x, y, self.getNodeName())
+        self.node2 = StraightTile.node2_default.globalPosAndDirection(theta, x, y, self.getNodeName())
+        node_loc = {self.node1.name: self.node1.pos, self.node2.name: self.node2.pos}
+        edges = [[self.node1.name, self.node2.name, "s"]]
+        directions = {self.node1.name: self.node1.direction, self.node2.name: self.node2.direction}
+        return node_loc, edges, directions
+
+    def getNodeName(self):
+        res = "straight" + str(id(self))
+        return res
+    """
+    pass
 
 class graph_creator:
     def __init__(self):
         self.node_locations = {}
         self.edges = []
+        self.directions = {}
         self.tile_map = []
         self._mid_counter = 1
         self.INTERMEDIATE_COUNT = 4
@@ -260,6 +283,9 @@ class graph_creator:
     def add_node_locations(self, node_loc):
         node_loc = {k: (v[0]*0.6, v[1]*0.6) for k, v in node_loc.items()}
         self.node_locations.update(node_loc)
+
+    def add_directions(self, directions):
+        self.directions.update(directions)
 
     def add_edges(self, ed):
         for edge in ed:
@@ -308,6 +334,9 @@ class graph_creator:
                     for t in range(0, mid_count + 2)
                 ]
 
+            src_dir = self.directions[source]
+            tgt_dir = self.directions[target]
+            
             prev_name = source
             for i in range(1, len(points)):
                 pt = points[i]
@@ -315,6 +344,15 @@ class graph_creator:
                     mid_name = "mid" + str(self._mid_counter)
                     self._mid_counter += 1
                     self.node_locations[mid_name] = (pt[0], pt[1])
+                    
+                    # Assign direction: first half gets source direction, second half gets target direction
+                    mid_index = i - 1  # 0-based index of intermediate node
+                    halfway_point = (len(points) - 2) / 2.0  # middle of intermediate nodes
+                    if mid_index < halfway_point:
+                        self.directions[mid_name] = src_dir
+                    else:
+                        self.directions[mid_name] = tgt_dir
+                    
                     curr_name = mid_name
                 else:
                     curr_name = target
@@ -355,13 +393,15 @@ class graph_creator:
         for edge in self.edges:
             duckietown_graph.add_edge(edge[0], edge[1], edge[2], edge[3])
         duckietown_graph.set_node_positions(self.node_locations)
+        duckietown_graph.set_directions(self.directions)
 
         return duckietown_graph
 
     def generate_node_locations(self):
         for tile in self.tile_map:
-            node_loc, edges = tile.create_nodes()
+            node_loc, edges, directions = tile.create_nodes()
             self.add_node_locations(node_loc)
+            self.add_directions(directions)
             self.add_edges(edges)
 
     def generate_edges(self):
@@ -381,4 +421,5 @@ if __name__ == "__main__":
     # gc.pickle_save()
     print(duckietown_graph._edges)
     print(duckietown_graph.node_positions)
+    print(duckietown_graph.directions)
     duckietown_graph.draw(script_dir="out/generate_duckietown_map", map_name="duckietown_226")

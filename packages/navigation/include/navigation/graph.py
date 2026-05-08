@@ -60,6 +60,9 @@ class Graph:
 
     def set_node_positions(self, positions):
         self.node_positions = positions
+    
+    def set_directions(self, directions):
+        self.directions = directions
 
     def set_node_pos(self, node, pos):
         """Sets the (x,y) pos of the node, if it exists in the graph."""
