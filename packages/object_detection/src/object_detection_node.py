@@ -155,7 +155,7 @@ class ObjectDetectionNode(DTROS):
                         ground_point = pixel_msg_to_ground_msg(point_msg, self.ground_projector, self.rectifier)
                         
                         # Check if the detected duckie is within a reasonable area in front of the robot
-                        if ground_point.x > 0 and ground_point.x < 0.5 and abs(ground_point.y) < 0.15:
+                        if ground_point.x > 0 and ground_point.x < 1.2 and abs(ground_point.y) < 0.25:
                             
                             distance = ground_point.x
                             
@@ -167,10 +167,11 @@ class ObjectDetectionNode(DTROS):
                             detected_object.confidence = float(det['confidence'])
                             detected_objects.append(detected_object)
                             
-                            rospy.loginfo(f"Duckie detected: distance={distance:.3f}m, confidence={det['confidence']:.2f}")
+                            # rospy.loginfo(f"Duckie detected: distance={distance:.3f}m, confidence={det['confidence']:.2f}")
                         else:
                             # DEBUG: Log out-of-bounds detections
-                            rospy.logdebug(f"Duckie ignored (out of bounds): x={ground_point.x:.2f}, y={ground_point.y:.2f}")
+                            # rospy.logdebug(f"Duckie ignored (out of bounds): x={ground_point.x:.2f}, y={ground_point.y:.2f}")
+                            pass
             
             # Sort by distance (closest first)
             detected_objects.sort(key=lambda obj: obj.distance)

@@ -20,11 +20,25 @@ Where:
 - **velocity_cost**: Discourages stalling (forward progress)
 - **heading_cost**: Smooth turns (ride comfort)
 
-### Velocity Space
+### Velocity Space & Dynamic Window
 
-The planner samples discrete velocities from:
-- Linear: 0 → max_velocity
-- Angular: -max_omega → +max_omega
+The planner samples discrete velocities within the **dynamic window**:
+
+**Key Insight**: Unlike static sampling (0 → max_velocity), DWA constrains velocities to what's **physically reachable** from the current velocity given acceleration limits.
+
+```
+Reachable linear velocities:
+  [max(0, v_current - max_accel_v × dt), min(max_velocity, v_current + max_accel_v × dt)]
+
+Reachable angular velocities:
+  [max(-max_omega, ω_current - max_accel_ω × dt), min(max_omega, ω_current + max_accel_ω × dt)]
+```
+
+**Example**: If current v=0.2 m/s, max_accel_v=0.5 m/s², dt=0.1s:
+- Without dynamic window: sample [0, 0.1, 0.2, ..., 0.4] (unrealistic)
+- With dynamic window: sample [0.15, 0.175, 0.2, 0.225, 0.25] (reachable!)
+
+**Benefit**: Ensures velocity commands match robot's actual acceleration capabilities, enabling smoother motion and better emergency braking response.
 
 More samples = better quality but slower computation.
 
@@ -163,7 +177,48 @@ max_obstacle_age: 3.0          # Decrease from 5.0
 
 ---
 
-## Advanced Tuning: Parameter Sensitivities
+### Scenario 6: Unrealistic Velocity Commands or Jerky Acceleration
+
+**Symptom**: Robot commanded velocities that it can't physically achieve; motion stutters or jerks
+
+**Root Cause**: Acceleration limits (`max_accel_v`, `max_accel_omega`) don't match robot's actual capabilities or are not set
+
+**Solutions**:
+```yaml
+# Measure actual acceleration capability
+# If motor can accelerate 0→0.4 m/s in 1 second: max_accel_v ≈ 0.4 m/s²
+
+max_accel_v: 0.5               # Conservative estimate
+max_accel_omega: 2.0           # For steering acceleration
+
+# Too aggressive (commands exceed motor capability):
+# max_accel_v: 2.0             # DON'T - unrealistic
+# max_accel_omega: 5.0         # DON'T - unrealistic
+
+# Too conservative (overly smooth but sluggish):
+# max_accel_v: 0.1             # May cause slow responses
+```
+
+**Why this matters**:
+- Without proper acceleration limits, simulated trajectories don't match reality
+- Robot can't brake as fast as simulation predicts → collision risk
+- Creates jerkiness as planner constantly changes target velocities
+
+**Debug**:
+```bash
+# Check if velocity commands are realistic
+rostopic echo /duckiebot_name/car_cmd
+
+# Monitor actual vs. commanded velocity
+# rostopic echo /duckiebot_name/odom | grep -A2 "linear"
+
+# If actual velocity lags far behind commanded velocity:
+# → acceleration limits are too aggressive
+```
+
+---
+
+
 
 ### Velocity Limits
 
@@ -176,6 +231,51 @@ max_omega: 1.5                 # Steering rate limit of Duckiebot
 # - Increase if robot feels sluggish
 # - Must match actual motor calibration
 ```
+
+### Acceleration Limits (Dynamic Window)
+
+**These are critical for realistic DWA behavior!**
+
+```yaml
+max_accel_v: 0.5               # Linear acceleration (m/s²)
+max_accel_omega: 2.0           # Angular acceleration (rad/s²)
+```
+
+**What these do**:
+- Constrain velocity sampling to reachable values
+- Prevent unrealistic instant velocity jumps
+- Enable smoother trajectory changes
+- Improve emergency braking response
+
+**How to tune**:
+
+1. **If robot motion feels jerky or makes abrupt velocity changes**:
+   ```yaml
+   max_accel_v: 0.3            # Conservative - smoother acceleration
+   max_accel_omega: 1.0        # Conservative - gentler turns
+   ```
+   - Smaller values → smoother but less responsive
+   - Good for: Smooth lane-following, navigation with delicate cargo
+
+2. **If robot seems unresponsive or slow to avoid obstacles**:
+   ```yaml
+   max_accel_v: 1.0            # Aggressive - quick direction changes
+   max_accel_omega: 3.0        # Aggressive - sharp evasive turns
+   ```
+   - Larger values → more responsive but rougher motion
+   - Good for: Crowded environments, emergency avoidance
+
+3. **To measure actual robot capability**:
+   ```bash
+   # Command full forward: v=0.4, ω=0
+   # Measure how long to reach from v=0 (should be ~0.8s at 0.5 m/s²)
+   # actual_accel = Δv / Δt
+   ```
+
+**Rule of thumb**:
+- `max_accel_v` should be 1-3× slower than peak motor acceleration
+- Conservative values (0.3-0.5) work well for small robots
+- Aggressive values (1.0+) only if motors tested at high power
 
 ### Sampling Resolution
 
@@ -219,6 +319,10 @@ weight_heading: 0.1
 velocity_resolution: 5
 omega_resolution: 9
 
+# Conservative acceleration for smooth lane-following
+max_accel_v: 0.3               # Gentle acceleration
+max_accel_omega: 1.0           # Smooth steering
+
 # Faster forgetting of transient obstacles
 max_obstacle_age: 2.0
 moving_avg_window: 3
@@ -235,6 +339,10 @@ weight_heading: 0.15
 
 velocity_resolution: 7         # Higher quality to find gaps
 omega_resolution: 15
+
+# Aggressive acceleration for evasive maneuvers
+max_accel_v: 0.8               # Quick direction changes
+max_accel_omega: 2.5           # Responsive steering
 
 # Hold obstacles longer to avoid re-collisions
 max_obstacle_age: 8.0
@@ -255,6 +363,11 @@ omega_resolution: 7
 
 max_velocity: 0.5              # Push speed limit
 max_omega: 2.0
+
+# Moderate acceleration for responsive but controlled motion
+max_accel_v: 0.6               # Balanced responsiveness
+max_accel_omega: 2.0
+
 prediction_horizon: 0.8        # Shorter horizon = faster decisions
 
 max_obstacle_age: 2.0          # Forget quickly
@@ -277,6 +390,10 @@ simulation_dt: 0.05            # Fine-grained simulation
 
 max_velocity: 0.25             # Conservative speed
 max_omega: 0.8                 # Gentle steering
+
+# Very conservative acceleration for ultra-smooth motion
+max_accel_v: 0.2               # Gradual acceleration
+max_accel_omega: 0.5           # Minimal steering jerk
 
 max_obstacle_age: 6.0
 moving_avg_window: 7

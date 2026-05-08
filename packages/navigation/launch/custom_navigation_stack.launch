@@ -25,6 +25,13 @@
         <arg name="param_file_name" value="$(arg param_file_name)"/>
     </include>
 
+    <!-- Graph search service with latched path publisher -->
+    <!-- Global planner: creates path from start to goal using graph search -->
+    <include file="$(find navigation)/launch/graph_search_create_global_path_node.launch">
+        <arg name="veh" value="$(arg veh)"/>
+        <arg name="param_file_name" value="$(arg param_file_name)"/>
+    </include>
+
     <!-- Custom DWA Planner Node -->
     <!-- Subscribes to path, odometry, obstacles; publishes car_cmd -->
     <include file="$(find navigation)/launch/custom_dwa_planner_node.launch">

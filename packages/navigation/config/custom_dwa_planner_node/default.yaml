@@ -6,6 +6,15 @@
 max_velocity: 0.4          # Maximum linear velocity (m/s)
 max_omega: 1.5             # Maximum angular velocity (rad/s)
 
+# Robot Acceleration Limits (Dynamic Window constraints)
+# Defines what velocities are reachable from current velocity
+# This is the "Dynamic" in DWA - velocities must be physically reachable
+max_accel_v: 0.5           # Maximum linear acceleration (m/s^2)
+                           # Constrains velocity samples to: [v_current - max_accel*dt, v_current + max_accel*dt]
+max_accel_omega: 2.0       # Maximum angular acceleration (rad/s^2)
+                           # Constrains angular velocity samples similarly
+                           # Conservative values prevent unrealistic velocity jumps
+
 # Velocity Sampling
 # Lower numbers = faster computation, higher numbers = better trajectory quality
 velocity_resolution: 5     # Number of linear velocity samples (typical: 3-7)
@@ -44,3 +53,19 @@ weight_heading: 0.05       # Smooth heading changes (prevents jerky turns)
 # Global path is provided as a sequence of waypoints
 # Cost function evaluates lateral deviation from path
 # Encourages lane-following behavior while reactively avoiding dynamic obstacles
+# ===== DYNAMIC WINDOW EXPLANATION =====
+# The DWA algorithm uses a "dynamic window" to constrain velocity sampling.
+# Instead of sampling all velocities from 0 to max_velocity every cycle,
+# we only sample velocities reachable from the current velocity given acceleration limits.
+#
+# This ensures:
+# 1. Physically realistic velocity commands (no impossible instant jumps)
+# 2. Smoother trajectory changes (gradual acceleration/deceleration)
+# 3. Better obstacle avoidance (more time to react by changing velocities gradually)
+#
+# Example: If current_v=0.2 m/s, max_accel_v=0.5 m/s², dt=0.1s:
+#   - Reachable velocities: [max(0, 0.2-0.05), min(0.4, 0.2+0.05)]
+#   - Only [0.15, 0.25] m/s will be sampled (instead of [0, 0.4])
+#
+# Tune max_accel_v and max_accel_omega based on your Duckiebot's actual capabilities
+# from motor response tests or manufacturer specs.

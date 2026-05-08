@@ -4,14 +4,14 @@
     <arg name="param_file_name" default="default" doc="Specify a param file. ex:default"/>
     <arg name="pkg_name" default="navigation" doc="name of the package"/>
     <arg name="node_name" default="obstacle_memory_node" doc="name of the node"/>
-    <param name="veh" value="$(arg veh)"/>
 
     <group ns="$(arg veh)">
         <node pkg="$(arg pkg_name)" type="$(arg node_name).py" name="$(arg node_name)" output="screen" required="false">
+            <param name="veh" value="$(arg veh)"/>
             <rosparam command="load" file="$(find navigation)/config/$(arg node_name)/$(arg param_file_name).yaml"/>
             
             <!-- Remappings: Subscribe to object detection output -->
-            <remap from="~duckie_obstacle_in" to="object_detection_node/duckie_obstacle"/>
+            <remap from="~detected_obstacle" to="object_detection_node/detected_obstacle"/>
             
             <!-- Publishers for visualization and planning -->
             <!-- ~obstacles_markers: visualization_msgs/MarkerArray. RViz visualization of detected obstacles -->

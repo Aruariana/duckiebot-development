@@ -46,7 +46,8 @@ class GraphSearchGlobalPath:
 
         # Publishers for visualization
         self.image_pub = rospy.Publisher("~map_graph", Image, queue_size=1, latch=True)
-        self.path_pub = rospy.Publisher("~global_path", Path, queue_size=1)
+        # Latched publisher ensures DWA planner receives path even if it subscribes after publication
+        self.path_pub = rospy.Publisher("~global_path", Path, queue_size=1, latch=True)
         self.bridge = CvBridge()
 
         # TF listener for pose transformations

@@ -18,7 +18,7 @@ import numpy as np
 from geometry_msgs.msg import Point, PoseStamped, PointStamped
 from nav_msgs.msg import Path
 from visualization_msgs.msg import MarkerArray, Marker
-from duckiebot_msgs.msg import DuckieObstacle
+from duckiebot_msgs.msg import DetectedObstacle, DetectedObject
 import tf2_ros
 from geometry_msgs.msg import TransformStamped
 import sys
@@ -37,8 +37,8 @@ class NavigationStackTester:
         
         # Publishers for testing
         self.pub_obstacle = rospy.Publisher(
-            'object_detection_node/duckie_obstacle',
-            DuckieObstacle,
+            'object_detection_node/detected_obstacle',
+            DetectedObstacle,
             queue_size=1
         )
         
@@ -67,12 +67,17 @@ class NavigationStackTester:
         rospy.loginfo("=" * 60)
         
         # Publish a single obstacle directly in front
-        obstacle = DuckieObstacle()
+        duckie_obj = DetectedObject()
+        duckie_obj.object_type = "duckie"
+        duckie_obj.distance = 0.3
+        duckie_obj.position.x = 0.3  # 30cm ahead
+        duckie_obj.position.y = 0.0  # Centered
+        duckie_obj.position.z = 0.0
+        duckie_obj.confidence = 0.95
+        
+        obstacle = DetectedObstacle()
         obstacle.detected = True
-        obstacle.distance = 0.3
-        obstacle.position.x = 0.3  # 30cm ahead
-        obstacle.position.y = 0.0  # Centered
-        obstacle.position.z = 0.0
+        obstacle.objects = [duckie_obj]
         
         rospy.loginfo("Publishing obstacle at (0.3, 0.0) in local frame")
         self.pub_obstacle.publish(obstacle)
@@ -95,12 +100,17 @@ class NavigationStackTester:
             noise_x = np.random.normal(0, 0.02)  # ±2cm noise
             noise_y = np.random.normal(0, 0.02)
             
-            obstacle = DuckieObstacle()
+            duckie_obj = DetectedObject()
+            duckie_obj.object_type = "duckie"
+            duckie_obj.distance = 0.3
+            duckie_obj.position.x = base_x + noise_x
+            duckie_obj.position.y = base_y + noise_y
+            duckie_obj.position.z = 0.0
+            duckie_obj.confidence = 0.95
+            
+            obstacle = DetectedObstacle()
             obstacle.detected = True
-            obstacle.distance = 0.3
-            obstacle.position.x = base_x + noise_x
-            obstacle.position.y = base_y + noise_y
-            obstacle.position.z = 0.0
+            obstacle.objects = [duckie_obj]
             
             rospy.loginfo(f"  Iteration {i+1}: Publishing at ({base_x + noise_x:.3f}, {base_y + noise_y:.3f})")
             self.pub_obstacle.publish(obstacle)
@@ -117,12 +127,17 @@ class NavigationStackTester:
         rospy.loginfo("=" * 60)
         
         # Publish obstacle once
-        obstacle = DuckieObstacle()
+        duckie_obj = DetectedObject()
+        duckie_obj.object_type = "duckie"
+        duckie_obj.distance = 0.3
+        duckie_obj.position.x = 0.3
+        duckie_obj.position.y = 0.0
+        duckie_obj.position.z = 0.0
+        duckie_obj.confidence = 0.95
+        
+        obstacle = DetectedObstacle()
         obstacle.detected = True
-        obstacle.distance = 0.3
-        obstacle.position.x = 0.3
-        obstacle.position.y = 0.0
-        obstacle.position.z = 0.0
+        obstacle.objects = [duckie_obj]
         
         rospy.loginfo("Publishing obstacle at (0.3, 0.0)")
         self.pub_obstacle.publish(obstacle)
@@ -132,8 +147,9 @@ class NavigationStackTester:
         
         # Publish "not detected" messages for a few seconds
         for i in range(5):
-            not_detected = DuckieObstacle()
+            not_detected = DetectedObstacle()
             not_detected.detected = False
+            not_detected.objects = []
             self.pub_obstacle.publish(not_detected)
             rospy.sleep(0.5)
         
@@ -193,12 +209,17 @@ class NavigationStackTester:
         # Publish obstacle in the middle of the path
         rospy.sleep(0.5)
         
-        obstacle = DuckieObstacle()
+        duckie_obj = DetectedObject()
+        duckie_obj.object_type = "duckie"
+        duckie_obj.distance = 0.75
+        duckie_obj.position.x = 0.75
+        duckie_obj.position.y = 0.0
+        duckie_obj.position.z = 0.0
+        duckie_obj.confidence = 0.95
+        
+        obstacle = DetectedObstacle()
         obstacle.detected = True
-        obstacle.distance = 0.75  # 75cm ahead, directly on path
-        obstacle.position.x = 0.75
-        obstacle.position.y = 0.0
-        obstacle.position.z = 0.0
+        obstacle.objects = [duckie_obj]
         
         rospy.loginfo("Publishing obstacle directly on planned path at (0.75, 0.0)")
         self.pub_obstacle.publish(obstacle)
@@ -213,12 +234,17 @@ class NavigationStackTester:
         rospy.loginfo("=" * 60)
         
         # Publish obstacle
-        obstacle = DuckieObstacle()
+        duckie_obj = DetectedObject()
+        duckie_obj.object_type = "duckie"
+        duckie_obj.distance = 0.3
+        duckie_obj.position.x = 0.3
+        duckie_obj.position.y = 0.0
+        duckie_obj.position.z = 0.0
+        duckie_obj.confidence = 0.95
+        
+        obstacle = DetectedObstacle()
         obstacle.detected = True
-        obstacle.distance = 0.3
-        obstacle.position.x = 0.3
-        obstacle.position.y = 0.0
-        obstacle.position.z = 0.0
+        obstacle.objects = [duckie_obj]
         
         rospy.loginfo("Publishing obstacle...")
         self.pub_obstacle.publish(obstacle)

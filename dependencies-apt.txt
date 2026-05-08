@@ -15,3 +15,6 @@ ffmpeg
 
 # needed by cmake when installed via pip
 file
+
+# for navigation
+ros-noetic-tf2-geometry-msgs

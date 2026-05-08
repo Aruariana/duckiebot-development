@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 from geometry_msgs.msg import Point as PointMsg, PointStamped, Vector3
 from visualization_msgs.msg import Marker, MarkerArray
-from duckiebot_msgs.msg import DuckieObstacle
+from duckiebot_msgs.msg import DetectedObstacle, DetectedObject
 from duckietown.dtros import DTROS, NodeType, TopicType
 import yaml
 
@@ -67,17 +67,23 @@ class ObstacleMemory:
     """
     
     def __init__(self, semantic_priors: Dict[str, SemanticPrior], 
+                 frame_map: str,
+                 frame_footprint: str,
                  max_obstacle_age: float = 5.0,
                  moving_avg_window: int = 5,
                  position_update_threshold: float = 0.05):
         """
         Args:
             semantic_priors: Dictionary mapping class names to SemanticPrior objects
+            frame_map: Name of the global map frame (e.g., 'robot_name/map')
+            frame_footprint: Name of the robot footprint frame (e.g., 'robot_name/footprint')
             max_obstacle_age: Remove obstacles not updated after this duration (seconds)
             moving_avg_window: Number of past positions to use for moving average
             position_update_threshold: Minimum distance to consider as actual new position
         """
         self.semantic_priors = semantic_priors
+        self.frame_map = frame_map
+        self.frame_footprint = frame_footprint
         self.max_obstacle_age = max_obstacle_age
         self.moving_avg_window = moving_avg_window
         self.position_update_threshold = position_update_threshold
@@ -186,13 +192,13 @@ class ObstacleMemory:
             # Create PointStamped in footprint frame
             local_point = PointStamped()
             local_point.header.frame_id = self.frame_footprint
-            local_point.header.stamp = rospy.Time.now()
+            local_point.header.stamp = rospy.Time(0)  # Use latest available transform
             local_point.point.x = local_position[0]
             local_point.point.y = local_position[1]
             local_point.point.z = 0.0
             
             # Transform to map frame
-            global_point = self.tf_buffer.transform(local_point, self.frame_map, timeout=rospy.Duration(0.1))
+            global_point = self.tf_buffer.transform(local_point, self.frame_map)
             
             return np.array([global_point.point.x, global_point.point.y])
         
@@ -287,14 +293,16 @@ class ObstacleMemoryNode(DTROS):
         
         self.obstacle_memory = ObstacleMemory(
             semantic_priors=self.semantic_priors,
+            frame_map=self.frame_map,
+            frame_footprint=self.frame_footprint,
             max_obstacle_age=max_age,
             moving_avg_window=window_size
         )
         
         # Subscriber for object detection
         self.sub_obstacle = rospy.Subscriber(
-            "~duckie_obstacle_in",
-            DuckieObstacle,
+            "~detected_obstacle",
+            DetectedObstacle,
             self.cb_obstacle_detection,
             queue_size=1
         )
@@ -352,37 +360,30 @@ class ObstacleMemoryNode(DTROS):
         rospy.loginfo(f"Loaded semantic priors for classes: {list(semantic_priors.keys())}")
         return semantic_priors
     
-    def cb_obstacle_detection(self, msg: DuckieObstacle):
-        """
-        Callback for new obstacle detection from object_detection_node.
-        
-        Expects: DuckieObstacle message with detected flag, distance, and position
-        Position is assumed to be in base_link frame from ground projection.
-        """
-        if not msg.detected:
+    # In ObstacleMemoryNode -> cb_obstacle_detection
+    def cb_obstacle_detection(self, msg: DetectedObstacle):
+        if not msg.detected or len(msg.objects) == 0:
             return
-        
-        # Extract obstacle info from message
-        local_position = np.array([msg.position.x, msg.position.y])
-        
-        # Hardcoded for now as 'duckie' - could be extended with class labels
-        class_name = 'duckie'
-        
-        # Add/update in memory
+            
         self.obstacle_memory.mark_frame_start()
-        obstacle_id = self.obstacle_memory.add_or_update_obstacle(
-            local_position=local_position,
-            class_name=class_name,
-            current_time=rospy.get_time()
-        )
+        current_time = rospy.get_time()
         
-        if obstacle_id >= 0:
-            self.obstacle_memory.mark_obstacle_visible(obstacle_id)
+        for obj in msg.objects:
+            if obj.object_type == "duckie":
+                local_position = np.array([obj.position.x, obj.position.y])
+                class_name = 'duckie'
+                
+                obstacle_id = self.obstacle_memory.add_or_update_obstacle(
+                    local_position=local_position,
+                    class_name=class_name,
+                    current_time=current_time
+                )
+                
+                if obstacle_id >= 0:
+                    self.obstacle_memory.mark_obstacle_visible(obstacle_id)
         
-        # Update static positions and timeouts
-        self.obstacle_memory.update_static_positions(rospy.get_time())
-        
-        # Publish obstacle list
+        self.obstacle_memory.update_static_positions(current_time)
+
         self._publish_obstacles()
     
     def _publish_obstacles(self):

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="veh"/>
+    <arg name="param_file_name" default="default" doc="Specify a param file. ex:default"/>
+    <arg name="pkg_name" default="navigation" doc="name of the package"/>
+    <arg name="node_name" default="graph_search_create_global_path" doc="name of the node"/>
+
+    <group ns="$(arg veh)">
+        <node pkg="$(arg pkg_name)" type="$(arg node_name).py" name="$(arg node_name)" output="screen" required="false">
+            <param name="veh" value="$(arg veh)"/>
+            <param name="origin_frame" value="~/map"/>
+            <param name="target_frame" value="~/footprint"/>
+            
+            <!-- Publishers for global path planning -->
+            <!-- ~map_graph: sensor_msgs/Image. Visualization of the graph overlaid on map -->
+            <!-- ~global_path: nav_msgs/Path. Latched global path from start to goal (consumed by DWA planner) -->
+            
+            <!-- Service -->
+            <!-- graph_search: navigation/GraphSearch. Global path planning service -->
+        </node>
+    </group>
+
+</launch>

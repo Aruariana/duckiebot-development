@@ -29,10 +29,10 @@ from typing import List, Tuple, Optional
 from dataclasses import dataclass
 from collections import namedtuple
 from geometry_msgs.msg import (
-    PoseStamped, PointStamped, Twist, Twist2DStamped, Vector3Stamped
+    PoseStamped, PointStamped, Twist, Vector3Stamped
 )
-from nav_msgs.msg import Path
-from duckietown_msgs.msg import Twist2DStamped as DT_Twist2DStamped
+from nav_msgs.msg import Path, Odometry
+from duckietown_msgs.msg import Twist2DStamped
 from visualization_msgs.msg import Marker, MarkerArray
 from duckietown.dtros import DTROS, NodeType, TopicType
 import threading
@@ -62,10 +62,20 @@ class TrajectoryEvaluation:
 
 class CustomDWAPlanner:
     """
-    Core DWA planner implementation without costmap_2d.
+    Core DWA (Dynamic Window Approach) planner implementation without costmap_2d.
+    
+    The Dynamic Window Approach constrains velocity sampling to velocities reachable
+    from the current velocity given acceleration limits. This ensures smooth, realistic
+    trajectories while enabling dynamic obstacle avoidance.
+    
+    Key Features:
+    - Dynamic velocity sampling based on current velocity and acceleration limits
+    - Trajectory simulation under differential drive kinematics
+    - Multi-objective cost function (path following + obstacle avoidance + smoothness)
+    - Continuous replanning at fixed frequency for reactive behavior
     
     Responsibilities:
-    - Sample velocity candidates from robot's kinematic limits
+    - Sample velocity candidates from robot's kinematic and dynamic limits
     - Simulate trajectories for each velocity
     - Evaluate trajectories against cost function
     - Select best trajectory for execution
@@ -74,21 +84,35 @@ class CustomDWAPlanner:
     def __init__(self,
                  max_velocity: float = 0.4,  # m/s
                  max_omega: float = 1.5,  # rad/s
+                 max_accel_v: float = 0.5,  # m/s^2 (acceleration limit)
+                 max_accel_omega: float = 2.0,  # rad/s^2 (angular acceleration limit)
                  velocity_resolution: int = 5,  # Number of velocity samples
                  omega_resolution: int = 9,  # Number of angular velocity samples
                  prediction_horizon: float = 1.0,  # Simulation time
                  simulation_dt: float = 0.1):  # Simulation timestep
         """
         Args:
-            max_velocity: Maximum linear velocity
-            max_omega: Maximum angular velocity
-            velocity_resolution: Number of linear velocity samples to evaluate
-            omega_resolution: Number of angular velocity samples
-            prediction_horizon: How far into future to simulate (seconds)
-            simulation_dt: Timestep for trajectory simulation
+            max_velocity: Maximum linear velocity (m/s). Robot kinematic limit.
+            max_omega: Maximum angular velocity (rad/s). Robot kinematic limit.
+            max_accel_v: Maximum linear acceleration (m/s²). Defines dynamic window.
+                         Reachable velocities: [v_current - max_accel_v*dt, v_current + max_accel_v*dt]
+                         Smaller values = smoother but less reactive. Larger values = more responsive.
+            max_accel_omega: Maximum angular acceleration (rad/s²). Defines angular dynamic window.
+                            Same principle as max_accel_v but for rotation.
+            velocity_resolution: Number of linear velocity samples to evaluate (typical: 3-7).
+                                Higher = better solution quality but slower computation.
+            omega_resolution: Number of angular velocity samples to evaluate (typical: 5-15).
+            prediction_horizon: How far into future to simulate (seconds).
+                               Shorter = more reactive to nearby obstacles.
+                               Longer = more predictive but slower computation.
+            simulation_dt: Timestep for trajectory simulation (seconds).
+                          Smaller = more accurate simulation but slower.
+                          Larger = faster but may skip thin obstacles.
         """
         self.max_velocity = max_velocity
         self.max_omega = max_omega
+        self.max_accel_v = max_accel_v
+        self.max_accel_omega = max_accel_omega
         self.velocity_resolution = velocity_resolution
         self.omega_resolution = omega_resolution
         self.prediction_horizon = prediction_horizon
@@ -112,22 +136,39 @@ class CustomDWAPlanner:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
     
-    def sample_velocity_space(self) -> List[Tuple[float, float]]:
+    def sample_velocity_space(self, current_velocity: np.ndarray) -> List[Tuple[float, float]]:
         """
-        Sample (v, omega) pairs uniformly from feasible space.
+        Sample (v, omega) pairs from the dynamic window.
         
-        Samples:
-        - Linear velocities from 0 to max_velocity
-        - Angular velocities from -max_omega to +max_omega
+        The dynamic window constrains reachable velocities based on:
+        - Current velocity
+        - Acceleration limits
+        - Time horizon
+        
+        This ensures sampled velocities are physically reachable, which is the key
+        feature of DWA ("Dynamic" Window Approach).
+        
+        Args:
+            current_velocity: [v, omega] current velocity
         
         Returns:
-            List of (v, omega) tuples
+            List of (v, omega) tuples within dynamic window
         """
         velocities = []
+        current_v = current_velocity[0]
+        current_omega = current_velocity[1]
         
-        # Include 0 (stop) option
-        v_samples = np.linspace(0, self.max_velocity, self.velocity_resolution)
-        omega_samples = np.linspace(-self.max_omega, self.max_omega, self.omega_resolution)
+        # Compute dynamic window bounds for linear velocity
+        v_min = max(0, current_v - self.max_accel_v * self.simulation_dt)
+        v_max = min(self.max_velocity, current_v + self.max_accel_v * self.simulation_dt)
+        
+        # Compute dynamic window bounds for angular velocity
+        omega_min = max(-self.max_omega, current_omega - self.max_accel_omega * self.simulation_dt)
+        omega_max = min(self.max_omega, current_omega + self.max_accel_omega * self.simulation_dt)
+        
+        # Sample within dynamic window
+        v_samples = np.linspace(v_min, v_max, self.velocity_resolution)
+        omega_samples = np.linspace(omega_min, omega_max, self.omega_resolution)
         
         for v in v_samples:
             for omega in omega_samples:
@@ -318,26 +359,35 @@ class CustomDWAPlanner:
             return 0.0
     
     def _compute_heading_cost(self, trajectory: List[TrajectoryPoint]) -> float:
-        """
-        Compute cost to encourage smooth heading changes.
-        
-        Penalizes sharp, jerky turns. Prefers gentle curves.
-        """
-        if len(trajectory) < 2:
-            return 0.0
-        
-        heading_changes = []
-        for i in range(1, len(trajectory)):
-            heading_change = abs(trajectory[i].theta - trajectory[i-1].theta)
-            # Handle angle wrapping
-            heading_change = min(heading_change, 2*np.pi - heading_change)
-            heading_changes.append(heading_change)
-        
-        # Maximum heading change indicates jerky behavior
-        if heading_changes:
-            return max(heading_changes)
-        else:
-            return 0.0
+            """
+            Calculates how well the trajectory's final heading aligns with the global path.
+            """
+            if self.global_path is None or len(self.global_path) < 2:
+                return 0.0
+                
+            # 1. Get the final point of the simulated trajectory
+            final_point = trajectory[-1]
+            
+            # 2. Find the closest waypoint on the global path to this final point
+            min_dist = float('inf')
+            closest_idx = 0
+            for i, path_point in enumerate(self.global_path[:-1]):
+                dist = np.hypot(final_point.x - path_point[0], final_point.y - path_point[1])
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_idx = i
+                    
+            # 3. Calculate the angle of the path at that waypoint
+            p1 = self.global_path[closest_idx]
+            p2 = self.global_path[closest_idx + 1]
+            path_angle = np.arctan2(p2[1] - p1[1], p2[0] - p1[0])
+            
+            # 4. Return the absolute angular difference
+            angle_diff = abs(final_point.theta - path_angle)
+            # Normalize to [-pi, pi]
+            angle_diff = np.arctan2(np.sin(angle_diff), np.cos(angle_diff))
+            
+            return abs(angle_diff)
     
     def plan(self, current_pose: np.ndarray,
             current_velocity: np.ndarray,
@@ -360,8 +410,8 @@ class CustomDWAPlanner:
         self.global_path = global_path
         self.obstacles = obstacles
         
-        # Step 1: Sample velocity space
-        velocity_candidates = self.sample_velocity_space()
+        # Step 1: Sample velocity space (constrained by dynamic window)
+        velocity_candidates = self.sample_velocity_space(current_velocity)
         
         # Step 2: Simulate and evaluate trajectories
         evaluations = []
@@ -404,6 +454,8 @@ class CustomDWAPlannerNode(DTROS):
         # Load parameters
         max_v = rospy.get_param("~max_velocity", 0.4)
         max_omega = rospy.get_param("~max_omega", 1.5)
+        max_accel_v = rospy.get_param("~max_accel_v", 0.5)
+        max_accel_omega = rospy.get_param("~max_accel_omega", 2.0)
         v_res = rospy.get_param("~velocity_resolution", 5)
         omega_res = rospy.get_param("~omega_resolution", 9)
         horizon = rospy.get_param("~prediction_horizon", 1.0)
@@ -413,6 +465,8 @@ class CustomDWAPlannerNode(DTROS):
         self.planner = CustomDWAPlanner(
             max_velocity=max_v,
             max_omega=max_omega,
+            max_accel_v=max_accel_v,
+            max_accel_omega=max_accel_omega,
             velocity_resolution=v_res,
             omega_resolution=omega_res,
             prediction_horizon=horizon,
@@ -440,7 +494,7 @@ class CustomDWAPlannerNode(DTROS):
         
         self.sub_odom = rospy.Subscriber(
             "~odom",
-            Path,  # Using nav_msgs/Path format for odometry pose tracking
+            Odometry,
             self.cb_odom,
             queue_size=1
         )
@@ -485,29 +539,30 @@ class CustomDWAPlannerNode(DTROS):
         
         rospy.logdebug(f"Received path with {len(self.global_path)} waypoints")
     
-    def cb_odom(self, msg: Path):
+    def cb_odom(self, msg: Odometry):
         """
-        Receive current odometry pose.
-        Can subscribe to /odom if converted to Path format, or implement PoseStamped.
+        Receive current odometry pose from deadreckoning node.
+        Extracts position and orientation from Odometry message.
         """
-        if msg.poses:
-            pose_stamped = msg.poses[-1]  # Last pose is current
+        with self.state_lock:
+            self.current_pose[0] = msg.pose.pose.position.x
+            self.current_pose[1] = msg.pose.pose.position.y
             
-            with self.state_lock:
-                self.current_pose[0] = pose_stamped.pose.position.x
-                self.current_pose[1] = pose_stamped.pose.position.y
-                
-                # Extract theta from quaternion
-                qx = pose_stamped.pose.orientation.x
-                qy = pose_stamped.pose.orientation.y
-                qz = pose_stamped.pose.orientation.z
-                qw = pose_stamped.pose.orientation.w
-                
-                # Convert quaternion to yaw
-                self.current_pose[2] = np.arctan2(
-                    2.0 * (qw * qz + qx * qy),
-                    1.0 - 2.0 * (qy * qy + qz * qz)
-                )
+            # Extract theta from quaternion
+            qx = msg.pose.pose.orientation.x
+            qy = msg.pose.pose.orientation.y
+            qz = msg.pose.pose.orientation.z
+            qw = msg.pose.pose.orientation.w
+            
+            # Convert quaternion to yaw
+            self.current_pose[2] = np.arctan2(
+                2.0 * (qw * qz + qx * qy),
+                1.0 - 2.0 * (qy * qy + qz * qz)
+            )
+            
+            # Also store current velocities from odometry
+            self.current_velocity[0] = msg.twist.twist.linear.x
+            self.current_velocity[1] = msg.twist.twist.angular.z
     
     def cb_obstacles(self, msg: MarkerArray):
         """Receive obstacle list from obstacle memory node."""
@@ -528,17 +583,45 @@ class CustomDWAPlannerNode(DTROS):
     def plan_step(self, event):
         """Execute one planning step (10 Hz)."""
         if not self.global_path:
-            rospy.logwarn("No path received, cannot plan")
             return
-        
+            
         with self.state_lock:
-            pose = self.current_pose.copy()
+            odom_pose = self.current_pose.copy()
             velocity = self.current_velocity.copy()
             path = self.global_path.copy()
             obstacles = self.obstacles.copy()
-        
-        # Execute DWA planning
-        best_velocity = self.planner.plan(pose, velocity, path, obstacles)
+
+        # --- NEW: Transform odom_pose to map_pose ---
+        try:
+            # Get latest map -> odom transform
+            trans = self.tf_buffer.lookup_transform(
+                self.frame_map, 
+                self.frame_odom, 
+                rospy.Time(0), # Get the most recent available
+                rospy.Duration(0.1)
+            )
+            
+            # Apply 2D transform (translation + rotation)
+            import tf.transformations as tr
+            q = [trans.transform.rotation.x, trans.transform.rotation.y, 
+                 trans.transform.rotation.z, trans.transform.rotation.w]
+            _, _, yaw_offset = tr.euler_from_quaternion(q)
+            
+            map_pose = np.zeros(3)
+            # Rotate odom vector and add map translation
+            dx = odom_pose[0] * np.cos(yaw_offset) - odom_pose[1] * np.sin(yaw_offset)
+            dy = odom_pose[0] * np.sin(yaw_offset) + odom_pose[1] * np.cos(yaw_offset)
+            
+            map_pose[0] = dx + trans.transform.translation.x
+            map_pose[1] = dy + trans.transform.translation.y
+            map_pose[2] = odom_pose[2] + yaw_offset
+            
+        except tf2_ros.TransformException as e:
+            rospy.logwarn(f"Waiting for map->odom TF: {e}")
+            return
+            
+        # Run planner using the MAP pose, not the odom pose
+        best_velocity = self.planner.plan(map_pose, velocity, path, obstacles)
         
         if best_velocity is None:
             best_velocity = (0.0, 0.0)
@@ -552,6 +635,9 @@ class CustomDWAPlannerNode(DTROS):
         
         msg = Twist2DStamped()
         msg.header.stamp = rospy.Time.now()
+        
+        msg.header.frame_id = self.frame_footprint 
+        
         msg.v = v
         msg.omega = omega
         
