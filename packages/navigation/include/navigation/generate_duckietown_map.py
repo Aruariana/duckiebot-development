@@ -79,10 +79,10 @@ class Tile:
             return None
 
         if t.type == "turn":
-            if t.node1.flow(node) == 2:
+            if t.node1.flow(node) == 4:
                 return [node.name, t.node1.name, "f"]
-            elif t.node2.flow(node) == 2:
-                return [node.name, t.node2.name, "f"]
+            elif t.node4.flow(node) == 4:
+                return [node.name, t.node4.name, "f"]
         elif t.type == "3way":
             if t.node1.flow(node) == 4:
                 return [node.name, t.node1.name, "f"]
@@ -108,8 +108,12 @@ class Tile:
 
 class TurnTile(Tile):
     name = 1000
-    node1_default = Node((-0.25, 0.25), (-1, 0), "node1_default")
-    node2_default = Node((0.25, -0.25), (0, 1), "node2_default")
+    node1_default = Node((-0.25, 0.5), (0, -1), "node1_default")
+    node2_default = Node((-0.5, 0.25), (-1, 0), "node2_default")
+
+    node3_default = Node((0.25, 0.5), (0, 1), "node3_default")
+    node4_default = Node((-0.5, -0.25), (1, 0), "node4_default")
+    
 
     def create_nodes(self):
         x = self.x
@@ -117,12 +121,17 @@ class TurnTile(Tile):
         theta = self.rotation
         self.node1 = TurnTile.node1_default.globalPosAndDirection(theta, x, y, self.getNodeName())
         self.node2 = TurnTile.node2_default.globalPosAndDirection(theta, x, y, self.getNodeName())
-        node_loc = {self.node1.name: self.node1.pos, self.node2.name: self.node2.pos}
-        edges = []
+        self.node3 = TurnTile.node3_default.globalPosAndDirection(theta, x, y, self.getNodeName())
+        self.node4 = TurnTile.node4_default.globalPosAndDirection(theta, x, y, self.getNodeName())                                            
+        node_loc = {self.node1.name: self.node1.pos, self.node2.name: self.node2.pos, self.node3.name: self.node3.pos, self.node4.name: self.node4.pos}
+        edges = [
+            [self.node1.name, self.node2.name, "r"],
+            [self.node4.name, self.node3.name, "l"],
+        ]
         return node_loc, edges
 
     def create_edges(self, tile_map):
-        edges = [self.connect_node(self.node1, tile_map), self.connect_node(self.node2, tile_map)]
+        edges = [ self.connect_node(self.node2, tile_map), self.connect_node(self.node3, tile_map) ]
         return edges
 
     def getNodeName(self):
@@ -245,6 +254,8 @@ class graph_creator:
         self.node_locations = {}
         self.edges = []
         self.tile_map = []
+        self._mid_counter = 1
+        self.INTERMEDIATE_COUNT = 4
 
     def add_node_locations(self, node_loc):
         self.node_locations.update(node_loc)
@@ -256,10 +267,62 @@ class graph_creator:
             source = edge[0]
             target = edge[1]
             action = edge[2]
-            manhattan_dist = abs(self.node_locations[source][0] - self.node_locations[target][0]) + abs(
-                self.node_locations[source][1] - self.node_locations[target][1]
-            )
-            self.edges.append([source, target, manhattan_dist, action])
+            src_pos = self.node_locations[source]
+            tgt_pos = self.node_locations[target]
+            manhattan_dist = abs(src_pos[0] - tgt_pos[0]) + abs(src_pos[1] - tgt_pos[1])
+
+            mid_count = self.INTERMEDIATE_COUNT
+
+            def bezier_pts(p0, p2, control, n):
+                pts = []
+                for i in range(0, n + 2):
+                    t = float(i) / (n + 1)
+                    a = (1 - t) * (1 - t)
+                    b = 2 * (1 - t) * t
+                    c = t * t
+                    x = a * p0[0] + b * control[0] + c * p2[0]
+                    y = a * p0[1] + b * control[1] + c * p2[1]
+                    pts.append((x, y))
+                return pts
+
+            if action in ("l", "r"):
+                v = (tgt_pos[0] - src_pos[0], tgt_pos[1] - src_pos[1])
+                perp = (-v[1], v[0])
+                norm = (perp[0] ** 2 + perp[1] ** 2) ** 0.5
+                if norm == 0:
+                    norm = 1.0
+                perp_unit = (perp[0] / norm, perp[1] / norm)
+                offset = 0.25
+                # Invert side mapping so curves follow node turning direction visually
+                side = -1.0 if action == "l" else 1.0
+                control = ((src_pos[0] + tgt_pos[0]) / 2.0 + side * perp_unit[0] * offset,
+                           (src_pos[1] + tgt_pos[1]) / 2.0 + side * perp_unit[1] * offset)
+                points = bezier_pts(src_pos, tgt_pos, control, mid_count)
+            else:
+                points = [
+                    (
+                        src_pos[0] + (t / float(mid_count + 1)) * (tgt_pos[0] - src_pos[0]),
+                        src_pos[1] + (t / float(mid_count + 1)) * (tgt_pos[1] - src_pos[1]),
+                    )
+                    for t in range(0, mid_count + 2)
+                ]
+
+            prev_name = source
+            for i in range(1, len(points)):
+                pt = points[i]
+                if i < len(points) - 1:
+                    mid_name = "mid" + str(self._mid_counter)
+                    self._mid_counter += 1
+                    self.node_locations[mid_name] = (pt[0], pt[1])
+                    curr_name = mid_name
+                else:
+                    curr_name = target
+
+                prev_pos = self.node_locations[prev_name]
+                curr_pos = self.node_locations[curr_name]
+                seg_weight = abs(prev_pos[0] - curr_pos[0]) + abs(prev_pos[1] - curr_pos[1])
+                self.edges.append([prev_name, curr_name, seg_weight, action])
+                prev_name = curr_name
 
     def pickle_save(self, name="duckietown_map.pkl"):
         afile = open(r"maps/duckietown_map.pkl", "w+")
@@ -309,7 +372,7 @@ class graph_creator:
 
 if __name__ == "__main__":
     gc = graph_creator()
-    duckietown_graph = gc.build_graph_from_csv(csv_filename="map.csv")
+    duckietown_graph = gc.build_graph_from_csv(csv_filename="map")
     # Node locations (for visual representation) and heuristics calculation
     # node_locations, edges = gc.get_map_226()
     # gc.add_node_locations(node_locations)

@@ -105,11 +105,29 @@ class Graph:
                 g.node(
                     name=node_name,
                     pos=node_pos,
-                    fixedsize="true",
-                    width="0",
-                    height="0",
-                    style="invis",
-                    label="",
+                    color="orange",
+                    shape="point",
+                    width="0.1",
+                    height="0.1",
+                )
+            elif node_name[0:8] == "straight":
+                g.node(
+                    name=node_name,
+                    pos=node_pos,
+                    color="lightblue",
+                    shape="point",
+                    width="0.1",
+                    height="0.1",
+                )
+            elif node_name.startswith("mid"):
+                # intermediate nodes: render smaller points
+                g.node(
+                    name=node_name,
+                    pos=node_pos,
+                    color="black",
+                    shape="point",
+                    width="0.03",
+                    height="0.03",
                 )
             elif (int(node_name) % 2) == 0:
                 g.node(

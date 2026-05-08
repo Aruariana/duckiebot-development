@@ -94,28 +94,29 @@ class PriorityQueue(Queue):
         update(self, A=[], order=order, f=f)
 
     def append(self, item):
-        bisect.insort(self.A, (self.f(item), item))
+        # Use a numeric tie-breaker (id) so bisect never compares
+        # the items themselves (which may be unorderable objects).
+        bisect.insort(self.A, (self.f(item), id(item), item))
 
     def __len__(self):
         return len(self.A)
 
     def pop(self):
         if self.order == min:
-            return self.A.pop(0)[1]
+            return self.A.pop(0)[2]
         else:
-            return self.A.pop()[1]
+            return self.A.pop()[2]
 
     def __contains__(self, item):
-        # Change 'lambda _, x:' to 'lambda x:'
-        return some(lambda x: x == item, self.A)
+        return some(lambda pair: pair[2] == item, self.A)
 
     def __getitem__(self, key):
-        for _, item in self.A:
+        for _, _, item in self.A:
             if item == key:
                 return item
 
     def __delitem__(self, key):
-        for i, (value, item) in enumerate(self.A):
+        for i, (value, _id, item) in enumerate(self.A):
             if item == key:
                 self.A.pop(i)
                 return
