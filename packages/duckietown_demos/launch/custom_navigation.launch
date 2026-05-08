@@ -24,6 +24,9 @@
 	    <!-- Object Detection (required for custom navigation) -->
 	    <arg name="object_detection" value="true"/>
 
+		<!-- Apriltag Localization-->
+		<arg name="apriltags" value="true"/>
+
   	</include>
 
 </launch>

@@ -19,8 +19,8 @@ class AprilTagLocalization(object):
 
         # KNOWN MAP LOCATIONS: Dictionary mapping tag_id to (x, y, z, yaw_in_radians)
         self.known_tags = {
-            # Example: Tag 11 is at X=0.25m, Y=0.0m, Z=0.08m (8cm off ground), facing forward
-            11: (0.25, 0.0, 0.08, 3.14159)    
+            # Example: Tag 10 is at X=0.45m, Y=1.03m, Z=0.08m (8cm off ground), facing forward
+            10: (0.45, 1.03, 0.08, 1.5708)    
         }
 
         # Publish tag markers for RVIZ visualization

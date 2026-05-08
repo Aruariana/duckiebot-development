@@ -362,26 +362,26 @@ class ObstacleMemoryNode(DTROS):
     
     # In ObstacleMemoryNode -> cb_obstacle_detection
     def cb_obstacle_detection(self, msg: DetectedObstacle):
-        if not msg.detected or len(msg.objects) == 0:
-            return
-            
-        self.obstacle_memory.mark_frame_start()
         current_time = rospy.get_time()
         
-        for obj in msg.objects:
-            if obj.object_type == "duckie":
-                local_position = np.array([obj.position.x, obj.position.y])
-                class_name = 'duckie'
-                
-                obstacle_id = self.obstacle_memory.add_or_update_obstacle(
-                    local_position=local_position,
-                    class_name=class_name,
-                    current_time=current_time
-                )
-                
-                if obstacle_id >= 0:
-                    self.obstacle_memory.mark_obstacle_visible(obstacle_id)
+        if msg.detected and len(msg.objects) > 0:
+            self.obstacle_memory.mark_frame_start()
+            
+            for obj in msg.objects:
+                if obj.object_type == "duckie":
+                    local_position = np.array([obj.position.x, obj.position.y])
+                    class_name = 'duckie'
+                    
+                    obstacle_id = self.obstacle_memory.add_or_update_obstacle(
+                        local_position=local_position,
+                        class_name=class_name,
+                        current_time=current_time
+                    )
+                    
+                    if obstacle_id >= 0:
+                        self.obstacle_memory.mark_obstacle_visible(obstacle_id)
         
+        # Always cleanup, even if no detections this frame
         self.obstacle_memory.update_static_positions(current_time)
 
         self._publish_obstacles()
