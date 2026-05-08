@@ -61,28 +61,18 @@ class GraphSearchGlobalPath:
 
     def handle_graph_search(self, req):
         """Handle graph search request and execute with move_base"""
-        
-        # Determine source node (use current robot position if not provided)
-        if req.source_node:
-            source_node = req.source_node
-            print(f"Using provided source node: {source_node}")
-        else:
-            try:
-                (trans, rot) = self.tf_listener.lookupTransform(
-                    self.origin_frame, self.target_frame, rospy.Time(0)
-                )
-                source_node = self._find_closest_node_to_point(trans[0], trans[1])
-                print(f"Using current robot position, closest node: {source_node}")
-            except Exception as e:
-                print(f"Could not get robot position: {e}")
-                return GraphSearchResponse([])
-        
-        # Determine target node (use coordinates if provided, otherwise use node name)
-        if hasattr(req, 'target_x') and hasattr(req, 'target_y') and (req.target_x != 0 or req.target_y != 0):
-            target_node = self._find_closest_node_to_point(req.target_x, req.target_y)
-            print(f"Finding closest node to click ({req.target_x}, {req.target_y}): {target_node}")
-        else:
-            target_node = req.target_node
+        try:
+            (trans, rot) = self.tf_listener.lookupTransform(
+                self.origin_frame, self.target_frame, rospy.Time(0)
+            )
+            source_node = self._find_closest_node_to_point(trans[0], trans[1])
+            print(f"Using current robot position, closest node: {source_node}")
+        except Exception as e:
+            print(f"Could not get robot position: {e}")
+            return GraphSearchResponse([])
+      
+        target_node = self._find_closest_node_to_point(req.target_x, req.target_y)
+        print(f"Finding closest node to click ({req.target_x}, {req.target_y}): {target_node}")
         
         print(f"Request: {source_node} -> {target_node}")
 

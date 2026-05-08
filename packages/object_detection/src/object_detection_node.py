@@ -6,6 +6,7 @@ import yaml
 import cv2
 import numpy as np
 import torch
+import warnings
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage, CameraInfo
 from geometry_msgs.msg import Point
@@ -33,6 +34,8 @@ weight_path = os.path.join(object_detection_path, 'config', 'model_weights', 'yo
 # Add YOLOv5 path to sys.path so that torch.hub can find it
 if yolov5_path not in sys.path:
     sys.path.append(yolov5_path)
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 class ObjectDetectionNode(DTROS):
     def __init__(self, node_name):
@@ -131,9 +134,9 @@ class ObjectDetectionNode(DTROS):
             detections = results.pandas().xyxy[0]
             
             # DEBUG: Log detections
-            if not detections.empty:
-                for _, det in detections.iterrows():
-                    rospy.loginfo(f"Detection: name={det['name']}, conf={det['confidence']}, xmin={det['xmin']}, xmax={det['xmax']}, ymin={det['ymin']}, ymax={det['ymax']}")
+            # if not detections.empty:
+            #    for _, det in detections.iterrows():
+            #        rospy.loginfo(f"Detection: name={det['name']}, conf={det['confidence']}, xmin={det['xmin']}, xmax={det['xmax']}, ymin={det['ymin']}, ymax={det['ymax']}")
             
             # Detect all obstacles in frame
             detected_objects = []
@@ -177,7 +180,7 @@ class ObjectDetectionNode(DTROS):
             detected_objects.sort(key=lambda obj: obj.distance)
             
             # DEBUG: Log detection results
-            rospy.loginfo(f"Obstacles detected: {len(detected_objects)}")
+            # rospy.loginfo(f"Obstacles detected: {len(detected_objects)}")
             
             # Publish obstacle message
             obstacle_msg = DetectedObstacle()

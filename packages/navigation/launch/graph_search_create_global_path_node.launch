@@ -18,6 +18,13 @@
             <!-- Service -->
             <!-- graph_search: navigation/GraphSearch. Global path planning service -->
         </node>
+
+        <node name="actions_dispatcher_node" pkg="navigation" type="actions_dispatcher_node.py" output="screen" ns="$(arg veh)">
+            <remap from="~fsm_mode" to="fsm_node/mode" />
+            <!-- Plan requests come from RQT GUI or mobile app -->
+            <!-- Define the topic that publishes SourceTargetNodes -->
+            <!-- Example: <remap from="~plan_request" to="navigation_request" /> -->
+	    </node>
     </group>
 
 </launch>
