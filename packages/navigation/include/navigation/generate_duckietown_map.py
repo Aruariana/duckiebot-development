@@ -258,6 +258,7 @@ class graph_creator:
         self.INTERMEDIATE_COUNT = 4
 
     def add_node_locations(self, node_loc):
+        node_loc = {k: (v[0]*0.6, v[1]*0.6) for k, v in node_loc.items()}
         self.node_locations.update(node_loc)
 
     def add_edges(self, ed):
