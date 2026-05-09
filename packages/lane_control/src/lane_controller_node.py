@@ -90,6 +90,8 @@ class LaneControllerNode(DTROS):
         self.pose_initialized = False
         self.pose_msg_dict = dict()
         self.last_s = None
+        
+        # Stop line logic (separate from object detection)
         self.stop_line_distance = None
         self.stop_line_detected = False
         self.at_stop_line = False
@@ -97,9 +99,22 @@ class LaneControllerNode(DTROS):
         self.obstacle_stop_line_detected = False
         self.at_obstacle_stop_line = False
 
-        self.duckie_distance = None
-        self.duckie_detected = False
-        self.at_duckie = False
+        # Modular detected objects storage - extensible for new object types
+        # Each object type stores: distance, position, detected flag, and two distance thresholds
+        self.detected_objects = {
+            'duckie': {
+                'distance': None,
+                'position': None,  # geometry_msgs/Point: x, y, z coordinates
+                'detected': False,
+                'distance_threshold_stop': 0.1,      # Distance to completely stop
+                'distance_threshold_slowdown': 0.3   # Distance to start slowing down
+            }
+            # Future: Add new object types here
+            # 'duckiebot_ahead': {
+            #     'distance': None, 'position': None, 'detected': False,
+            #     'distance_threshold_stop': 0.3, 'distance_threshold_slowdown': 0.6
+            # }
+        }
 
         self.current_pose_source = "lane_filter"
 
@@ -147,28 +162,45 @@ class LaneControllerNode(DTROS):
 
     def cbDetectedObstacle(self, msg):
         """
-        Callback storing the current detected obstacle distance, if detected.
+        Callback processing detected obstacles and updating detection state for each object type.
+        
+        This is a modular callback that handles any object type present in the detected_objects dict.
+        New object types can be added to self.detected_objects, and this callback will automatically
+        process them without requiring modification.
 
         Args:
             msg(:obj:`DetectedObstacle`): Message containing information about detected obstacles.
         """
-        if msg.detected and len(msg.objects) > 0:
-            # Find the closest duckie object
-            duckie_objects = [obj for obj in msg.objects if obj.object_type == "duckie"]
-            if duckie_objects:
-                # Get the closest one
-                closest_duckie = min(duckie_objects, key=lambda obj: obj.distance)
-                self.duckie_distance = closest_duckie.distance
-                self.duckie_detected = True
-                self.at_duckie = closest_duckie.distance < 0.2  # at duckie if very close
-            else:
-                self.duckie_distance = None
-                self.duckie_detected = False
-                self.at_duckie = False
-        else:
-            self.duckie_distance = None
-            self.duckie_detected = False
-            self.at_duckie = False
+        # Reset all tracked objects to not detected
+        for obj_type in self.detected_objects:
+            self.detected_objects[obj_type]['detected'] = False
+            self.detected_objects[obj_type]['distance'] = None
+            self.detected_objects[obj_type]['position'] = None
+
+        # Process incoming detections if available
+        if not msg.detected or len(msg.objects) == 0:
+            return
+
+        # Group detected objects by type
+        objects_by_type = {}
+        for obj in msg.objects:
+            if obj.object_type not in objects_by_type:
+                objects_by_type[obj.object_type] = []
+            objects_by_type[obj.object_type].append(obj)
+
+        # Update tracked objects - store the closest object of each type
+        for obj_type, objects in objects_by_type.items():
+            if obj_type in self.detected_objects:
+                # Find closest object of this type
+                closest_obj = min(objects, key=lambda obj: obj.distance)
+
+                self.detected_objects[obj_type]['distance'] = closest_obj.distance
+                self.detected_objects[obj_type]['position'] = closest_obj.position
+                self.detected_objects[obj_type]['detected'] = True
+
+                if self.params["~verbose"] == 2:
+                    self.log(f"Detected {obj_type}: distance={closest_obj.distance:.3f}m at position ({closest_obj.position.x:.3f}, {closest_obj.position.y:.3f}, {closest_obj.position.z:.3f})")
+
 
     def cbStopLineReading(self, msg):
         """Callback storing current distance to the next stopline, if one is detected.
@@ -238,11 +270,18 @@ class LaneControllerNode(DTROS):
         if self.last_s is not None:
             dt = current_s - self.last_s
 
-        if self.at_stop_line or self.at_obstacle_stop_line or self.at_duckie:
+        # === STOP LINE LOGIC (separate from object detection) ===
+        # Stop if at stop line (keep original separate logic)
+        if self.at_stop_line or self.at_obstacle_stop_line:
+            v = 0
+            omega = 0
+        # === DETECTED OBJECTS LOGIC (modular) ===
+        # Stop if at any detected object (distance below stop threshold)
+        elif any(obj_info['detected'] and obj_info['distance'] < obj_info['distance_threshold_stop']
+                 for obj_info in self.detected_objects.values()):
             v = 0
             omega = 0
         else:
-
             # Compute errors
             d_err = pose_msg.d - self.params["~d_offset"]
             phi_err = pose_msg.phi
@@ -257,26 +296,45 @@ class LaneControllerNode(DTROS):
                 phi_err = np.maximum(self.params["~theta_thres_min"].value, np.minimum(phi_err, self.params["~theta_thres_max"].value))
 
             wheels_cmd_exec = [self.wheels_cmd_executed.vel_left, self.wheels_cmd_executed.vel_right]
-            if self.duckie_detected:
-                v, omega = self.controller.compute_control_action(
-                    d_err, phi_err, dt, wheels_cmd_exec, self.duckie_distance
-                )
-                # TODO: This is a temporarily fix to avoid vehicle image detection latency caused unable to stop in time.
+            
+            # === Determine which obstacle distance to use for control action ===
+            distance_for_control = self.stop_line_distance
+            using_detected_object = False
+            apply_slowdown = False
+            
+            # Priority 1: Check detected objects (modular - works for any object type)
+            closest_detected_distance = float('inf')
+            for obj_type, obj_info in self.detected_objects.items():
+                if obj_info['detected'] and obj_info['distance'] < closest_detected_distance:
+                    closest_detected_distance = obj_info['distance']
+                    distance_for_control = obj_info['distance']
+                    using_detected_object = True
+                    # Check if we should apply slowdown (within slowdown threshold but above stop threshold)
+                    if obj_info['distance'] < obj_info['distance_threshold_slowdown']:
+                        apply_slowdown = True
+                    if self.params["~verbose"] == 2:
+                        self.log(f"Using {obj_type} distance for control: {obj_info['distance']:.3f}m")
+            
+            # Priority 2: If no detected object, check obstacle stop line
+            if not using_detected_object and self.obstacle_stop_line_detected:
+                distance_for_control = self.obstacle_stop_line_distance
+                using_detected_object = True
+                apply_slowdown = True
+                if self.params["~verbose"] == 2:
+                    self.log(f"Using obstacle stop line distance for control: {self.obstacle_stop_line_distance:.3f}m")
+            
+            # Compute control action
+            v, omega = self.controller.compute_control_action(
+                d_err, phi_err, dt, wheels_cmd_exec, distance_for_control
+            )
+            
+            # Apply slowdown if within slowdown threshold of any detected object
+            # TODO: This could be made configurable per object type in the future
+            if apply_slowdown:
                 v = v * 0.25
                 omega = omega * 0.25
-
-            elif self.obstacle_stop_line_detected:
-                v, omega = self.controller.compute_control_action(
-                    d_err, phi_err, dt, wheels_cmd_exec, self.obstacle_stop_line_distance
-                )
-                # TODO: This is a temporarily fix to avoid vehicle image detection latency caused unable to stop in time.
-                v = v * 0.25
-                omega = omega * 0.25
-
-            else:
-                v, omega = self.controller.compute_control_action(
-                    d_err, phi_err, dt, wheels_cmd_exec, self.stop_line_distance
-                )
+                if self.params["~verbose"] == 2:
+                    self.log("Applying slowdown for detected obstacle")
 
             # For feedforward action (i.e. during intersection navigation)
             omega += self.params["~omega_ff"]
