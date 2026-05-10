@@ -1,0 +1,12 @@
+<launch>
+    <arg name="veh" default="$(env VEHICLE_NAME)"/>
+    <arg name="pkg_name" value="platooning_control"/>
+    <arg name="node_name" value="platooning_node"/>
+    <arg name="param_file_name" default="default" doc="Specify a param file. ex: custom"/>
+
+    <group ns="$(arg veh)">
+        <node pkg="$(arg pkg_name)" type="$(arg node_name).py" name="$(arg node_name)" output="screen">
+            <rosparam command="load" file="$(find platooning_control)/config/$(arg node_name)/$(arg param_file_name).yaml"/>
+        </node>
+    </group>
+</launch>

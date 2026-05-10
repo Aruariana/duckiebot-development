@@ -1,0 +1,54 @@
+# ============================================================================
+# LANE CONTROL PARAMETERS (Tunable via rosparam set for live adjustment)
+# ============================================================================
+v_bar: 0.19                          # Nominal velocity (m/s) in lane following mode
+k_d: -5.0                            # Proportional gain for lateral deviation (d error)
+k_theta: -3.0                        # Proportional gain for heading (phi error)
+k_Id: 0.0                            # Integral gain for lateral deviation
+k_Iphi: 0.0                          # Integral gain for heading deviation
+
+# Lateral and heading error thresholds
+theta_thres_min: -0.5                # Minimum heading error threshold (radians)
+theta_thres_max: 0.5                 # Maximum heading error threshold (radians)
+d_thres: 0.2615                      # Maximum lateral error threshold (meters)
+d_offset: 0.0                        # Lateral offset from lane center (0 = centered)
+
+# Integral error bounds (anti-windup)
+integral_bounds:
+  d:                                 # Bounds for lateral integral
+    top: 0.3
+    bot: -0.3
+  phi:                               # Bounds for heading integral
+    top: 1.2
+    bot: -1.2
+
+# Error resolution (below this, integral is reset)
+d_resolution: 0.011                  # Lateral error resolution (meters)
+phi_resolution: 0.051                # Heading error resolution (radians)
+
+# Feedforward term
+omega_ff: 0.0                        # Feedforward angular velocity (rad/s)
+
+# ============================================================================
+# PLATOONING (VEHICLE FOLLOWING) PARAMETERS
+# ============================================================================
+
+# Hysteresis thresholds for mode switching
+y_offset_enter: 0.12                 # Max lateral offset to ENTER platooning mode (m)
+                                     # Must be within center lane to start following
+y_offset_exit: 0.20                  # Lateral offset to EXIT platooning mode (m)
+                                     # If leader moves this far sideways (turning),
+                                     # follower reverts to lane following for safety
+
+# Target distance control
+target_distance: 0.40                # Desired distance to leader vehicle (m)
+k_p_dist: 1.5                        # P-gain for distance control (velocity adjustment)
+                                     # v_cmd = v_base + k_p * (distance_error)
+
+# Speed limits for platooning mode
+max_platoon_speed: 0.25              # Maximum safe speed when following (m/s)
+min_platoon_speed: 0.0               # Minimum speed (no backing up)
+
+# Timeout and safety
+timeout_duration: 0.5                # Seconds to wait after losing leader before fallback
+                                     # Prevents jittery mode switches from lost frames
