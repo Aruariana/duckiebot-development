@@ -339,6 +339,10 @@
             </include>
         </group>
 
+        <include file="$(find led_emitter)/launch/led_supervisor_node.launch">
+            <arg name="veh" value="$(arg veh)"/>
+        </include>
+
                 <!--<remap from="led_pattern_switch_node/change_color_pattern" to="led_emitter_node/set_pattern" />-->
         <group if="$(arg /LED/pattern_switch)">
             <remap from="led_pattern_switch_node/set_pattern" to="led_emitter_node/set_pattern"/>
