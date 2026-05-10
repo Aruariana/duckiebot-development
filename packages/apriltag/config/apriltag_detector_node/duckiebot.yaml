@@ -1,11 +1,11 @@
-# Parameters for apriltag detector node
+# Parameters for apriltag detector node (PC High-Accuracy Config)
 family: "tag36h11"
 ndetectors: 1
-nthreads: 3
-quad_decimate: 2.0
-quad_sigma: 0.0
+nthreads: 4                 # Increased to use more PC cores 
+quad_decimate: 1.0          # DECREASED from 2.0 to look at native resolution
+quad_sigma: 0.8             # INCREASED from 0.0 to smooth out JPEG artifacts
 refine_edges: 1
-decode_sharpening: 0.25
+decode_sharpening: 0.50     # INCREASED from 0.25 to sharpen the barcode payload
 tag_size: 0.065
 detection_freq: -1
 rectify_alpha: 0.0

@@ -24,10 +24,9 @@ class AprilTagLocalization(object):
             33: (0.050, 1.830, 0.08, 1.5708),
             10: (0.643, 1.140, 0.08, -1.5708),
             9 : (1.140, 0.655, 0.08, 1.5708),
-            25: (1.130, 1.140, 0.08, 0.0),
-            65: (0.650, 1.825, 0.08, 3.14159),
+            25: (1.130, 1.140, 0.08, 3.14159),
+            65: (0.650, 1.825, 0.08, 0.0000),
             32: (1.140, 1.833, 0.08, 1.5708),
-            26: (0.640, 2.320, 0.08, -1.5708),
             26: (0.640, 2.320, 0.08, -1.5708),
             61: (1.735, 1.120, 0.08, -1.5708),
             57: (1.735, 2.430, 0.08, -1.5708)
@@ -51,10 +50,21 @@ class AprilTagLocalization(object):
         for detection in msg.detections:
             tag_id = int(detection.tag_id)
 
-            rospy.loginfo("[%s] Detected tag ID: %d", self.node_name, tag_id)
+            # rospy.loginfo("[%s] Detected tag ID: %d", self.node_name, tag_id)
 
             # Ignore tags we don't know the absolute map location of
             if tag_id not in self.known_tags:
+                continue
+
+            # 1. The Barcode Check (Is it the right ID?)
+            if detection.decision_margin < 30.0:
+                continue
+
+            # 2. The 3D Angle Check (Is the geometry stable?)
+            # pose_error is usually a very small decimal. 
+            # When the math gets ambiguous, it spikes.
+            if detection.pose_error > 1e-6:  # You will need to tune this specific number
+                rospy.logwarn(f"Dropped Tag {tag_id} due to high pose error: {detection.pose_error}")
                 continue
 
             # 1. Transform: Vehicle to Camera
@@ -97,7 +107,11 @@ class AprilTagLocalization(object):
 
             # Extract final position and rotation
             (final_x, final_y, final_z) = tr.translation_from_matrix(map_T_veh)
-            (qx, qy, qz, qw) = tr.quaternion_from_matrix(map_T_veh)
+
+            # Extract Euler angles, isolate Yaw, and build a flat 2D quaternion
+            roll, pitch, yaw = tr.euler_from_matrix(map_T_veh, 'sxyz')
+            (qx, qy, qz, qw) = tr.quaternion_from_euler(0.0, 0.0, yaw, 'sxyz')
+            # ---------------
 
             # 5. Publish Pose
             pose_msg = PoseStamped()

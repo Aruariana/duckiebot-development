@@ -119,7 +119,8 @@ class AprilTagDetector(DTROS):
             img = self._jpeg.decode(msg.data, pixel_format=TJPF_GRAY)
         # run input image through the rectification map
         with self.profiler("/cb/image/rectify"):
-            img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_NEAREST)
+            # Changed to Inter Linear for better quality on PC (was Inter Nearest for speed on Duckiebot)
+            img = cv2.remap(img, self._mapx, self._mapy, cv2.INTER_LINEAR)
         # detect tags
         with self.profiler("/cb/image/detection"):
             tags = self._detectors[detector_id].detect(img, True, self._camera_parameters, self.tag_size)
