@@ -38,3 +38,5 @@
     <include file="$(find led_emitter)/launch/led_supervisor_node.launch">
         <arg name="veh" value="$(arg veh)"/>
     </include>
+
+</launch>

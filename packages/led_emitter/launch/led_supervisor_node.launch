@@ -1,11 +1,11 @@
 	<launch>
-		<arg name="node_name" value="led_supervisor_node"/>
-		<arg name="param_file_name" value="led_supervisor_node"/>
-		<arg name="veh" value="$(env VEHICLE_NAME)"/>
-		<arg name="pkg_name" value="led_emitter"/>
-		<arg name="nodelet_manager_name" value="nodelet_manager"/>
-		<arg name="config" value="baseline"/>
-		<arg name="param_file_path" value="$(find led_emitter)/config/$(arg node_name)/$(arg param_file_name).yaml"/>
+		<arg name="node_name" default="led_supervisor_node"/>
+		<arg name="param_file_name" default="led_supervisor_node"/>
+		<arg name="veh" default="$(env VEHICLE_NAME)"/>
+		<arg name="pkg_name" default="led_emitter"/>
+		<arg name="nodelet_manager_name" default="nodelet_manager"/>
+		<arg name="config" default="baseline"/>
+		<arg name="param_file_path" default="$(find led_emitter)/config/$(arg node_name)/$(arg param_file_name).yaml"/>
 		
 		<group ns="$(arg veh)">
 			<node pkg="$(arg pkg_name)" type="led_supervisor_node.py"  name="$(arg node_name)" output="screen" >
