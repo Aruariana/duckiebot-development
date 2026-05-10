@@ -49,6 +49,8 @@
 
     <arg name="object_detection" default="false"/>
 
+    <arg name="custom_navigation" default="false"/>
+
     <arg name="apriltags" default="false"/>
 
     <arg name="LED" default="false" />
@@ -253,13 +255,20 @@
 
     <!-- Start Object Detection -->
     <group if="$(arg object_detection)">
-        <remap from="object_detection_node/image/compressed" to="camera_node/image/compressed"/>
-        <remap from="object_detection_node/camera_info" to="camera_node/camera_info"/>
         <include file="$(find object_detection)/launch/object_detection.launch">
             <arg name="veh" value="$(arg veh)"/>
         </include>
     </group>
     <!-- End Object Detection -->
+
+    <!-- Start Custom Navigation Stack -->
+    <group if="$(arg custom_navigation)">
+        <include file="$(find navigation)/launch/custom_navigation_stack.launch">
+            <arg name="veh" value="$(arg veh)"/>
+            <arg name="param_file_name" value="$(arg param_file_name)"/>
+        </include>
+    </group>
+    <!-- End Custom Navigation Stack -->
 
     <!-- Start AprilTags -->
     <group if="$(arg apriltags)">

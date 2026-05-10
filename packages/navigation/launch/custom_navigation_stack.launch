@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- 
+    Custom Navigation Stack Launch File for Duckiebot DB21M
+    
+    Launches the complete custom obstacle avoidance and local planning system:
+    1. Obstacle Memory Node - Maintains persistent obstacle map
+    2. Custom DWA Planner Node - Lightweight local trajectory planner
+    
+    This system replaces the heavy ROS Navigation Stack (costmap_2d + move_base)
+    with a simpler, more appropriate solution for mono-camera Duckiebot.
+    
+    Usage:
+        roslaunch navigation custom_navigation_stack.launch veh:=duckiebot_name
+    -->
+    
+    <arg name="veh"/>
+    <arg name="param_file_name" default="default" doc="Specify a param file. ex:default"/>
+    <arg name="pkg_name" default="navigation" doc="name of the package"/>
+
+    <!-- Obstacle Memory Node -->
+    <!-- Subscribes to object detection, maintains global obstacle map -->
+    <include file="$(find navigation)/launch/obstacle_memory_node.launch">
+        <arg name="veh" value="$(arg veh)"/>
+        <arg name="param_file_name" value="$(arg param_file_name)"/>
+    </include>
+
+    <!-- Graph search service with latched path publisher -->
+    <!-- Global planner: creates path from start to goal using graph search -->
+    <include file="$(find navigation)/launch/graph_search_create_global_path_node.launch">
+        <arg name="veh" value="$(arg veh)"/>
+        <arg name="param_file_name" value="$(arg param_file_name)"/>
+    </include>
+
+    <!-- Custom DWA Planner Node -->
+    <!-- Subscribes to path, odometry, obstacles; publishes car_cmd -->
+    <include file="$(find navigation)/launch/custom_dwa_planner_node.launch">
+        <arg name="veh" value="$(arg veh)"/>
+        <arg name="param_file_name" value="$(arg param_file_name)"/>
+    </include>
+
+</launch>

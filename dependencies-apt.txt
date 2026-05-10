@@ -7,6 +7,7 @@ libyaml-cpp-dev
 python3-sklearn
 iputils-ping
 python3-tk
+graphviz
 
 mencoder
 mplayer
@@ -14,3 +15,6 @@ ffmpeg
 
 # needed by cmake when installed via pip
 file
+
+# for navigation
+ros-noetic-tf2-geometry-msgs
