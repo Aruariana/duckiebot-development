@@ -1,0 +1,3 @@
+# LED Supervisor Node Configuration
+omega_threshold: 0.5  # Angular velocity threshold for turn signals (rad/s)
+velocity_threshold: 0.01  # Linear velocity threshold for stop detection (m/s)

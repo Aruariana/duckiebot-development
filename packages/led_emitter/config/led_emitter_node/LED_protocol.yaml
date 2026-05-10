@@ -109,6 +109,12 @@ LED_protocol:
       frequency_mask: [1,1,0,1,1]
       frequency: *f2
 
+    CAR_HAZARD:
+      color_mask: []
+      color_list: "yellow"
+      frequency_mask: [1, 1, 1, 1, 1]
+      frequency: 1.0
+
 LED_scale: 0.8
 channel_order:
   duckiebot: "RGB"

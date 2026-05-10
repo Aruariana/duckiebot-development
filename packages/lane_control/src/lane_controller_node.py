@@ -101,6 +101,12 @@ class LaneControllerNode(DTROS):
         self.duckie_detected = False
         self.at_duckie = False
 
+        self.duckiebot_distance = None
+        self.duckiebot_detected = False
+
+        self.safe_stop_distance = rospy.get_param("~safe_stop_distance", 0.2)
+        self.start_deceleration_distance = rospy.get_param("~start_deceleration_distance", 0.8)
+
         self.current_pose_source = "lane_filter"
 
         # Construct publishers
@@ -131,6 +137,9 @@ class LaneControllerNode(DTROS):
         self.sub_detected_obstacle = rospy.Subscriber(
             "~detected_obstacle", DetectedObstacle, self.cbDetectedObstacle, queue_size=1
         )
+        self.sub_detected_duckiebot = rospy.Subscriber(
+            "~detected_obstacle", DetectedObstacle, self.cbDetectedDuckiebot, queue_size=1
+        )
 
         self.log("Initialized!")
 
@@ -145,30 +154,52 @@ class LaneControllerNode(DTROS):
         self.obstacle_stop_line_detected = msg.stop_line_detected
         self.at_stop_line = msg.at_stop_line
 
-    def cbDetectedObstacle(self, msg):
+    # def cbDetectedObstacle(self, msg):
+    #     """
+    #     Callback storing the current detected obstacle distance, if detected.
+
+    #     Args:
+    #         msg(:obj:`DetectedObstacle`): Message containing information about detected obstacles.
+    #     """
+    #     if msg.detected and len(msg.objects) > 0:
+    #         # Find the closest duckie object
+    #         duckie_objects = [obj for obj in msg.objects if obj.object_type == "duckie"]
+    #         if duckie_objects:
+    #             # Get the closest one
+    #             closest_duckie = min(duckie_objects, key=lambda obj: obj.distance)
+    #             self.duckie_distance = closest_duckie.distance
+    #             self.duckie_detected = True
+    #             self.at_duckie = closest_duckie.distance < 0.2  # at duckie if very close
+    #         else:
+    #             self.duckie_distance = None
+    #             self.duckie_detected = False
+    #             self.at_duckie = False
+    #     else:
+    #         self.duckie_distance = None
+    #         self.duckie_detected = False
+    #         self.at_duckie = False
+
+    def cbDetectedDuckiebot(self, msg):
         """
-        Callback storing the current detected obstacle distance, if detected.
+        Callback storing the current detected duckiebot distance, if detected.
 
         Args:
             msg(:obj:`DetectedObstacle`): Message containing information about detected obstacles.
         """
         if msg.detected and len(msg.objects) > 0:
-            # Find the closest duckie object
-            duckie_objects = [obj for obj in msg.objects if obj.object_type == "duckie"]
-            if duckie_objects:
+            # Find the closest duckiebot object
+            duckiebot_objects = [obj for obj in msg.objects if obj.object_type == "duckiebot"]
+            if duckiebot_objects:
                 # Get the closest one
-                closest_duckie = min(duckie_objects, key=lambda obj: obj.distance)
-                self.duckie_distance = closest_duckie.distance
-                self.duckie_detected = True
-                self.at_duckie = closest_duckie.distance < 0.2  # at duckie if very close
+                closest_duckiebot = min(duckiebot_objects, key=lambda obj: obj.distance)
+                self.duckiebot_distance = closest_duckiebot.distance
+                self.duckiebot_detected = True
             else:
-                self.duckie_distance = None
-                self.duckie_detected = False
-                self.at_duckie = False
+                self.duckiebot_distance = None
+                self.duckiebot_detected = False
         else:
-            self.duckie_distance = None
-            self.duckie_detected = False
-            self.at_duckie = False
+            self.duckiebot_distance = None
+            self.duckiebot_detected = False
 
     def cbStopLineReading(self, msg):
         """Callback storing current distance to the next stopline, if one is detected.
@@ -264,6 +295,17 @@ class LaneControllerNode(DTROS):
                 # TODO: This is a temporarily fix to avoid vehicle image detection latency caused unable to stop in time.
                 v = v * 0.25
                 omega = omega * 0.25
+
+            elif self.duckiebot_detected:
+                if self.duckiebot_distance <= self.safe_stop_distance:
+                    v = 0.0
+                else:
+                    speed_multiplier = (self.duckiebot_distance - self.safe_stop_distance) / (self.start_deceleration_distance - self.safe_stop_distance)
+                    speed_multiplier = max(0.0, min(1.0, speed_multiplier))
+                    v, omega = self.controller.compute_control_action(
+                        d_err, phi_err, dt, wheels_cmd_exec, self.duckiebot_distance
+                    )
+                    v = v * speed_multiplier
 
             elif self.obstacle_stop_line_detected:
                 v, omega = self.controller.compute_control_action(

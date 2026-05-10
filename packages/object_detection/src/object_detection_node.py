@@ -144,37 +144,37 @@ class ObjectDetectionNode(DTROS):
             if self.camera_info_received:
                 for _, det in detections.iterrows():
                     # Filter: Only consider 'duckie' class detections
-                    if det['name'] == 'duckie':
+                    
                         
-                        # Compute the center bottom point of the bounding box
-                        x_center = (det['xmin'] + det['xmax']) / 2
-                        y_bottom = det['ymax'] 
+                    # Compute the center bottom point of the bounding box
+                    x_center = (det['xmin'] + det['xmax']) / 2
+                    y_bottom = det['ymax'] 
 
-                        # Normalize
-                        x_norm = x_center / image.shape[1]
-                        y_norm = y_bottom / image.shape[0]
+                    # Normalize
+                    x_norm = x_center / image.shape[1]
+                    y_norm = y_bottom / image.shape[0]
+                    
+                    point_msg = Point(x_norm, y_norm, 0)
+                    ground_point = pixel_msg_to_ground_msg(point_msg, self.ground_projector, self.rectifier)
+                    
+                    # Check if the detected duckie is within a reasonable area in front of the robot
+                    if ground_point.x > 0 and ground_point.x < 1.2 and abs(ground_point.y) < 0.25:
                         
-                        point_msg = Point(x_norm, y_norm, 0)
-                        ground_point = pixel_msg_to_ground_msg(point_msg, self.ground_projector, self.rectifier)
+                        distance = ground_point.x
                         
-                        # Check if the detected duckie is within a reasonable area in front of the robot
-                        if ground_point.x > 0 and ground_point.x < 1.2 and abs(ground_point.y) < 0.25:
-                            
-                            distance = ground_point.x
-                            
-                            # Create a DetectedObject for this duckie
-                            detected_object = DetectedObject()
-                            detected_object.object_type = "duckie"
-                            detected_object.distance = distance
-                            detected_object.position = ground_point
-                            detected_object.confidence = float(det['confidence'])
-                            detected_objects.append(detected_object)
-                            
-                            # rospy.loginfo(f"Duckie detected: distance={distance:.3f}m, confidence={det['confidence']:.2f}")
-                        else:
-                            # DEBUG: Log out-of-bounds detections
-                            # rospy.logdebug(f"Duckie ignored (out of bounds): x={ground_point.x:.2f}, y={ground_point.y:.2f}")
-                            pass
+                        # Create a DetectedObject for this duckie
+                        detected_object = DetectedObject()
+                        detected_object.object_type = det['name']
+                        detected_object.distance = distance
+                        detected_object.position = ground_point
+                        detected_object.confidence = float(det['confidence'])
+                        detected_objects.append(detected_object)
+                        
+                        # rospy.loginfo(f"Duckie detected: distance={distance:.3f}m, confidence={det['confidence']:.2f}")
+                    else:
+                        # DEBUG: Log out-of-bounds detections
+                        # rospy.logdebug(f"Duckie ignored (out of bounds): x={ground_point.x:.2f}, y={ground_point.y:.2f}")
+                        pass
             
             # Sort by distance (closest first)
             detected_objects.sort(key=lambda obj: obj.distance)

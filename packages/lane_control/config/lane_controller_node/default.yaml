@@ -28,4 +28,7 @@ stop_line_slowdown:
   start: 0.6
   end: 0.15
 
+safe_stop_distance: 0.2
+start_deceleration_distance: 0.8
+
 verbose: 0

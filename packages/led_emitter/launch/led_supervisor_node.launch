@@ -1,0 +1,18 @@
+	<launch>
+		<arg name="node_name" value="led_supervisor_node"/>
+		<arg name="param_file_name" value="led_supervisor_node"/>
+		<arg name="veh" value="$(env VEHICLE_NAME)"/>
+		<arg name="pkg_name" value="led_emitter"/>
+		<arg name="nodelet_manager_name" value="nodelet_manager"/>
+		<arg name="config" value="baseline"/>
+		<arg name="param_file_path" value="$(find led_emitter)/config/$(arg node_name)/$(arg param_file_name).yaml"/>
+		
+		<group ns="$(arg veh)">
+			<node pkg="$(arg pkg_name)" type="led_supervisor_node.py"  name="$(arg node_name)" output="screen" >
+				<rosparam command="load" file="$(arg param_file_path)"/>
+				<remap from="~car_cmd" to="lane_controller_node/car_cmd"/>
+				<remap from="~duckie_obstacle" to="object_detection_node/duckie_obstacle"/>
+				<remap from="~set_pattern" to="led_emitter_node/set_pattern"/>
+			</node>
+		</group>
+	</launch>
